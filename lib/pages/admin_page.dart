@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import '../services/biometric_service.dart';
 import '../services/cms_service.dart';
 import '../services/upload_service.dart';
 import '../theme/colors.dart';
@@ -146,6 +147,19 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     }
   }
 
+  Future<void> _handleFingerprintLogin() async {
+    final bio = BiometricService();
+    if (!await bio.isAvailable()) {
+      if (mounted) _snack('Biometric not available on this device', isError: true);
+      return;
+    }
+    final ok = await bio.authenticate(reason: 'Unlock the Management Portal');
+    if (ok && mounted) {
+      setState(() => _authorized = true);
+      _loadConfig();
+    }
+  }
+
   void _snack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
@@ -246,25 +260,25 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: const [
-            Tab(icon: Icon(Icons.palette), text: 'Branding'),
             Tab(icon: Icon(Icons.home), text: 'Home'),
-            Tab(icon: Icon(Icons.auto_awesome), text: 'Sunnah'),
             Tab(icon: Icon(Icons.notifications), text: 'Alerts'),
             Tab(icon: Icon(Icons.access_time), text: 'Prayer'),
             Tab(icon: Icon(Icons.nights_stay), text: 'Ramadan'),
+            Tab(icon: Icon(Icons.auto_awesome), text: 'Sunnah'),
             Tab(icon: Icon(Icons.favorite), text: 'Donations'),
+            Tab(icon: Icon(Icons.palette), text: 'Branding'),
             Tab(icon: Icon(Icons.people), text: 'About'),
           ],
         ),
         Expanded(
           child: TabBarView(controller: _tabCtrl, children: [
-            _buildBrandingTab(),
             _buildHomeTab(),
-            _buildSunnahTab(),
             _buildAlertsTab(),
             _buildPrayerTab(),
             _buildRamadanTab(),
+            _buildSunnahTab(),
             _buildDonationsTab(),
+            _buildBrandingTab(),
             _buildAboutTab(),
           ]),
         ),
@@ -303,6 +317,15 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             ),
             child: const Text('Authorize', style: TextStyle(fontWeight: FontWeight.w900)),
           ),
+          if (BiometricService().isSupported) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _handleFingerprintLogin,
+              icon: const Icon(Icons.fingerprint),
+              label: const Text('Unlock with Fingerprint'),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24)),
+            ),
+          ],
         ],
       ),
     );

@@ -63,6 +63,10 @@ class _LoginPageState extends State<LoginPage> {
       if (auth.isAuthenticated && mounted) {
         await context.read<MasjidProvider>().loadSavedMasjid();
         if (mounted) context.go('/');
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No saved session — sign in once with email/password first, then fingerprint works next time.')),
+        );
       }
     }
   }
