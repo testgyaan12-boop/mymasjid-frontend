@@ -244,6 +244,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         TabBar(
           controller: _tabCtrl,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(icon: Icon(Icons.palette), text: 'Branding'),
             Tab(icon: Icon(Icons.home), text: 'Home'),
@@ -386,69 +387,48 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         const SizedBox(height: 18),
         Text('Theme Presets', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 110,
-          child: GridView.builder(
-            scrollDirection: Axis.horizontal,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2, mainAxisSpacing: 6, crossAxisSpacing: 6,
-              childAspectRatio: 3,
-            ),
-            itemCount: ThemePreset.presets.length,
-            itemBuilder: (_, i) {
-              final p = ThemePreset.presets[i];
-              final isActive = p.primaryHsl.replaceAll('%', '') == '$_primH $_primS $_primL';
-              return InkWell(
-                onTap: () {
-                  setState(() {
-                    final pp = p.primaryHsl.replaceAll('%', '').split(' ');
-                    final ss = p.secondaryHsl.replaceAll('%', '').split(' ');
-                    if (pp.length == 3) { _primH = pp[0]; _primS = pp[1]; _primL = pp[2]; }
-                    if (ss.length == 3) { _secH = ss[0]; _secS = ss[1]; _secL = ss[2]; }
-                  });
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isActive ? theme.colorScheme.primary : theme.dividerColor,
-                      width: isActive ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 18, height: 18,
-                            decoration: BoxDecoration(
-                              color: HSLColorConverter.fromHslString(p.primaryHsl),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Container(
-                            width: 18, height: 18,
-                            decoration: BoxDecoration(
-                              color: HSLColorConverter.fromHslString(p.secondaryHsl),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(p.name, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
-                    ],
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: ThemePreset.presets.map((p) {
+            final isActive = p.primaryHsl.replaceAll('%', '') == '$_primH $_primS $_primL';
+            final pColor = HSLColorConverter.fromHslString(p.primaryHsl);
+            final sColor = HSLColorConverter.fromHslString(p.secondaryHsl);
+            return InkWell(
+              onTap: () {
+                setState(() {
+                  final pp = p.primaryHsl.replaceAll('%', '').split(' ');
+                  final ss = p.secondaryHsl.replaceAll('%', '').split(' ');
+                  if (pp.length == 3) { _primH = pp[0]; _primS = pp[1]; _primL = pp[2]; }
+                  if (ss.length == 3) { _secH = ss[0]; _secS = ss[1]; _secL = ss[2]; }
+                });
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isActive ? theme.colorScheme.primary : theme.dividerColor,
+                    width: isActive ? 2 : 1,
                   ),
                 ),
-              );
-            },
-          ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 18, height: 18,
+                      decoration: BoxDecoration(color: pColor, borderRadius: BorderRadius.circular(4))),
+                    const SizedBox(width: 5),
+                    Container(width: 18, height: 18,
+                      decoration: BoxDecoration(color: sColor, borderRadius: BorderRadius.circular(4))),
+                    const SizedBox(width: 6),
+                    Text(p.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
         ),
         const SizedBox(height: 18),
         Text('Custom Colors', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
@@ -466,17 +446,22 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             _colorPreview(primary),
             const SizedBox(width: 8),
             _colorPreview(secondary),
-            const SizedBox(width: 16),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.shuffle, size: 16),
-              label: const Text('Random', style: TextStyle(fontSize: 12)),
-              onPressed: () {
-                setState(() {
-                  _primH = (DateTime.now().millisecondsSinceEpoch % 360).toString();
-                  _secH = ((DateTime.now().millisecondsSinceEpoch + 180) % 360).toString();
-                });
-              },
-            ),
+            const Spacer(),
+            _miniBtn(Icons.palette_outlined, 'Custom', () => _pickCustomColor()),
+            const SizedBox(width: 6),
+            _miniBtn(Icons.shuffle, 'Random', () {
+              setState(() {
+                _primH = (DateTime.now().millisecondsSinceEpoch % 360).toString();
+                _secH = ((DateTime.now().millisecondsSinceEpoch + 180) % 360).toString();
+              });
+            }),
+            const SizedBox(width: 6),
+            _miniBtn(Icons.restore, 'Default', () {
+              setState(() {
+                _primH = '142'; _primS = '76'; _primL = '36';
+                _secH = '43'; _secS = '76'; _secL = '58';
+              });
+            }),
           ],
         ),
         const SizedBox(height: 20),
@@ -493,6 +478,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             'logo': logoUrl,
           });
           themeProvider.setBrandingColors('$_primH $_primS% $_primL%', '$_secH $_secS% $_secL%');
+          await context.read<MasjidProvider>().fetchCmsData();
         }),
       ],
     ));
@@ -528,6 +514,35 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
   Widget _colorPreview(Color c) {
     return Container(width: 40, height: 40, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(10), border: Border.all(color: Theme.of(context).dividerColor)));
+  }
+
+  Widget _miniBtn(IconData icon, String label, VoidCallback onPressed) {
+    return OutlinedButton.icon(
+      icon: Icon(icon, size: 14),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  Future<void> _pickCustomColor() async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => _CustomColorDialog(initialPrimary: '$_primH $_primS% $_primL%', initialSecondary: '$_secH $_secS% $_secL%'),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        final pp = result['primary']!.replaceAll('%', '').split(' ');
+        final ss = result['secondary']!.replaceAll('%', '').split(' ');
+        if (pp.length == 3) { _primH = pp[0]; _primS = pp[1]; _primL = pp[2]; }
+        if (ss.length == 3) { _secH = ss[0]; _secS = ss[1]; _secL = ss[2]; }
+      });
+    }
   }
 
   Widget _hslSlider(String label, Color color, String h, String s, String l, Function(String, String, String) onChange) {
@@ -1308,6 +1323,236 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             )),
         ],
       ),
+    );
+  }
+}
+
+class _CustomColorDialog extends StatefulWidget {
+  final String initialPrimary;
+  final String initialSecondary;
+  const _CustomColorDialog({required this.initialPrimary, required this.initialSecondary});
+
+  @override
+  State<_CustomColorDialog> createState() => _CustomColorDialogState();
+}
+
+class _CustomColorDialogState extends State<_CustomColorDialog> {
+  late double _pH, _pS, _pL;
+  late double _sH, _sS, _sL;
+
+  @override
+  void initState() {
+    super.initState();
+    List<double> parse(String v, double def) {
+      final parts = v.replaceAll('%', '').split(' ');
+      return parts.length == 3 ? [double.parse(parts[0]), double.parse(parts[1]), double.parse(parts[2])] : [def, 50, 50];
+    }
+
+    final p = parse(widget.initialPrimary, 142);
+    final s = parse(widget.initialSecondary, 43);
+    _pH = p[0]; _pS = p[1]; _pL = p[2];
+    _sH = s[0]; _sS = s[1]; _sL = s[2];
+  }
+
+  String _hsl(double h, double s, double l) => '${h.round()} ${s.round()}% ${l.round()}%';
+
+  Widget _slider(String label, Color color, double value, double max, ValueChanged<double> onChanged) {
+    return Row(
+      children: [
+        SizedBox(width: 42, child: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+        Expanded(
+          child: Slider(
+            value: value.clamp(0, max),
+            min: 0,
+            max: max,
+            activeColor: color,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(width: 30, child: Text('${value.round()}', textAlign: TextAlign.right, style: const TextStyle(fontSize: 11))),
+      ],
+    );
+  }
+
+  Widget _colorEditor(String name, Color color, double h, double s, double l, void Function(double, double, double) apply) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(width: 22, height: 22, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(6), border: Border.all(color: Theme.of(context).dividerColor))),
+            const SizedBox(width: 8),
+            Text('$name Color', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _HslPickerBox(
+          hue: h,
+          saturation: s,
+          lightness: l,
+          onChanged: (ns, nl) => setState(() => apply(h, ns, nl)),
+        ),
+        const SizedBox(height: 6),
+        _HueBar(
+          hue: h,
+          onChanged: (nh) => setState(() => apply(nh, s, l)),
+        ),
+        const SizedBox(height: 6),
+        _slider('Hue', color, h, 360, (v) => setState(() => apply(v, s, l))),
+        _slider('Sat', color, s, 100, (v) => setState(() => apply(h, v, l))),
+        _slider('Lgt', color, l, 100, (v) => setState(() => apply(h, s, v))),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pColor = HSLColorConverter.fromHslString(_hsl(_pH, _pS, _pL));
+    final sColor = HSLColorConverter.fromHslString(_hsl(_sH, _sS, _sL));
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.palette_outlined, size: 22),
+          const SizedBox(width: 8),
+          const Text('Custom Colors', style: TextStyle(fontSize: 18)),
+        ],
+      ),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _colorEditor('Primary', pColor, _pH, _pS, _pL, (h, s, l) { _pH = h; _pS = s; _pL = l; }),
+              const Divider(height: 24),
+              _colorEditor('Secondary', sColor, _sH, _sS, _sL, (h, s, l) { _sH = h; _sS = s; _sL = l; }),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, {'primary': _hsl(_pH, _pS, _pL), 'secondary': _hsl(_sH, _sS, _sL)}),
+          child: const Text('Apply'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HslPickerBox extends StatefulWidget {
+  final double hue;
+  final double saturation;
+  final double lightness;
+  final void Function(double saturation, double lightness) onChanged;
+  const _HslPickerBox({required this.hue, required this.saturation, required this.lightness, required this.onChanged});
+
+  @override
+  State<_HslPickerBox> createState() => _HslPickerBoxState();
+}
+
+class _HslPickerBoxState extends State<_HslPickerBox> {
+  double _w = 0;
+  double _h = 0;
+
+  void _update(Offset local) {
+    if (_w == 0 || _h == 0) return;
+    final dx = (local.dx / _w).clamp(0.0, 1.0);
+    final dy = (local.dy / _h).clamp(0.0, 1.0);
+    widget.onChanged(dx * 100, (1 - dy) * 100);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseHue = (widget.hue % 360).toDouble();
+    final saturation = (widget.saturation / 100).clamp(0.0, 1.0);
+    final lightness = (widget.lightness / 100).clamp(0.0, 1.0);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _w = constraints.maxWidth;
+        _h = constraints.maxHeight;
+        return GestureDetector(
+          onPanDown: (d) => _update(d.localPosition),
+          onPanUpdate: (d) => _update(d.localPosition),
+          onTapDown: (d) => _update(d.localPosition),
+          child: Stack(
+            children: [
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  gradient: LinearGradient(
+                    colors: [
+                      HSLColor.fromAHSL(1, baseHue, 1, 0.5).toColor(),
+                      Colors.white,
+                    ],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    stops: const [0, 1],
+                  ),
+                ),
+              ),
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  gradient: LinearGradient(
+                    colors: [Colors.transparent, Colors.black],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: saturation * (_w - 24),
+                top: (1 - lightness) * (180 - 24),
+                child: IgnorePointer(
+                  child: Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: HSLColor.fromAHSL(1, baseHue, saturation, lightness).toColor(),
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 4)],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HueBar extends StatelessWidget {
+  final double hue;
+  final ValueChanged<double> onChanged;
+  const _HueBar({required this.hue, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        return GestureDetector(
+          onPanDown: (d) => onChanged((d.localPosition.dx / w).clamp(0.0, 1.0) * 360),
+          onPanUpdate: (d) => onChanged((d.localPosition.dx / w).clamp(0.0, 1.0) * 360),
+          onTapDown: (d) => onChanged((d.localPosition.dx / w).clamp(0.0, 1.0) * 360),
+          child: Container(
+            height: 24,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              gradient: LinearGradient(
+                colors: List.generate(7, (i) => HSLColor.fromAHSL(1, i * 60.0, 1, 0.5).toColor()),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

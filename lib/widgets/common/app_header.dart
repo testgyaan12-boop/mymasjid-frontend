@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +16,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     final masjid = context.watch<MasjidProvider>();
     final theme = context.watch<ThemeProvider>();
     final masjidName = masjid.currentMasjid?['name'] as String? ?? 'Noor Al Masjid';
+    final logo = (masjid.allCmsData['branding'] as Map<String, dynamic>?)?['logo'] as String?;
 
     return Container(
       padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
@@ -26,6 +28,19 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
+            if (logo != null && logo.isNotEmpty) ...[
+              ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: logo,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(width: 32, height: 32, color: Theme.of(context).dividerColor.withValues(alpha: 0.4)),
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             Expanded(
               child: GestureDetector(
                 onTap: () async {
