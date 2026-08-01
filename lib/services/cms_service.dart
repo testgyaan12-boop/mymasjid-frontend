@@ -1,0 +1,141 @@
+import 'package:dio/dio.dart';
+import 'api_client.dart';
+
+class CmsService {
+  final Dio _dio = ApiClient().dio;
+
+  Future<Map<String, dynamic>> getBranding() async {
+    final res = await _dio.get('/cms/branding');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> updateBranding(Map<String, dynamic> data) async {
+    await _dio.put('/cms/branding', data: data);
+  }
+
+  Future<Map<String, dynamic>> getHomeAnnouncement() async {
+    final res = await _dio.get('/cms/home-announcement');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> updateHomeAnnouncement(Map<String, dynamic> data) async {
+    await _dio.put('/cms/home-announcement', data: data);
+  }
+
+  Future<List<dynamic>> getPrayerTimes() async {
+    final res = await _dio.get('/cms/prayer-times');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> updatePrayerTimes(List<Map<String, dynamic>> data) async {
+    await _dio.put('/cms/prayer-times', data: data);
+  }
+
+  Future<Map<String, dynamic>> getJumuah() async {
+    final res = await _dio.get('/cms/jumuah');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getRamadan() async {
+    final res = await _dio.get('/cms/ramadan');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> updateRamadan(Map<String, dynamic> data) async {
+    await _dio.put('/cms/ramadan', data: data);
+  }
+
+  Future<List<dynamic>> getJanazahs() async {
+    final res = await _dio.get('/cms/janazahs');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> createJanazah(Map<String, dynamic> data) async {
+    await _dio.post('/cms/janazahs', data: data);
+  }
+
+  Future<void> deleteJanazah(int id) async {
+    await _dio.delete('/cms/janazahs/$id');
+  }
+
+  Future<List<dynamic>> getGumshudas() async {
+    final res = await _dio.get('/cms/gumshudas');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> createGumshuda(Map<String, dynamic> data) async {
+    await _dio.post('/cms/gumshudas', data: data);
+  }
+
+  Future<void> deleteGumshuda(int id) async {
+    await _dio.delete('/cms/gumshudas/$id');
+  }
+
+  Future<List<dynamic>> getAnnouncements() async {
+    final res = await _dio.get('/cms/announcements');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> createAnnouncement(Map<String, dynamic> data) async {
+    await _dio.post('/cms/announcements', data: data);
+  }
+
+  Future<void> deleteAnnouncement(int id) async {
+    await _dio.delete('/cms/announcements/$id');
+  }
+
+  Future<List<dynamic>> getDonationCauses() async {
+    final res = await _dio.get('/cms/donation-causes');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> createDonationCause(Map<String, dynamic> data) async {
+    await _dio.post('/cms/donation-causes', data: data);
+  }
+
+  Future<void> deleteDonationCause(int id) async {
+    await _dio.delete('/cms/donation-causes/$id');
+  }
+
+  Future<List<dynamic>> getMonthlyDonations() async {
+    final res = await _dio.get('/cms/monthly-donations');
+    return res.data as List<dynamic>;
+  }
+
+  Future<List<dynamic>> getExpenses() async {
+    final res = await _dio.get('/cms/expenses');
+    return res.data as List<dynamic>;
+  }
+
+  Future<List<dynamic>> getServices() async {
+    final res = await _dio.get('/cms/services');
+    return res.data as List<dynamic>;
+  }
+
+  Future<List<dynamic>> getTeamMembers() async {
+    final res = await _dio.get('/cms/team-members');
+    return res.data as List<dynamic>;
+  }
+
+  Future<List<dynamic>> getSunnahs() async {
+    final res = await _dio.get('/cms/sunnahs');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> createSunnah(Map<String, dynamic> data) async {
+    await _dio.post('/cms/sunnahs', data: data);
+  }
+
+  Future<void> deleteSunnah(int id) async {
+    await _dio.delete('/cms/sunnahs/$id');
+  }
+
+  Future<Map<String, dynamic>> getSunnahBroadcast() async {
+    final res = await _dio.get('/cms/sunnah-broadcast');
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> setSunnahBroadcast(int sunnahId) async {
+    await _dio.post('/cms/sunnah-broadcast', data: {'sunnahId': sunnahId});
+  }
+}
