@@ -979,6 +979,18 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           }),
           const SizedBox(height: 20),
           _saveBtn(() async {
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Save Prayer Times?'),
+                content: const Text('Are you sure you want to save the updated prayer times? They will be shown to all users.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+                ],
+              ),
+            );
+            if (confirmed != true || !mounted) return;
             await _cmsService.updatePrayerTimes(_prayerTimes);
             _snack('Prayer times saved');
           }),
