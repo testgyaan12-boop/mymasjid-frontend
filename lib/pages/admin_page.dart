@@ -992,6 +992,10 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             );
             if (confirmed != true || !mounted) return;
             await _cmsService.updatePrayerTimes(_prayerTimes);
+            final jumuah = _cfg['jumuah'] as Map<String, dynamic>?;
+            if (jumuah != null) {
+              await _cmsService.updateJumuah({'time': jumuah['time'] as String? ?? '01:45 PM'});
+            }
             _snack('Prayer times saved');
           }),
       ],

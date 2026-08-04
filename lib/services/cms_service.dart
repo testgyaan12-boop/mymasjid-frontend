@@ -36,6 +36,10 @@ class CmsService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<void> updateJumuah(Map<String, dynamic> data) async {
+    await _dio.put('/cms/jumuah', data: data);
+  }
+
   Future<Map<String, dynamic>> getRamadan() async {
     final res = await _dio.get('/cms/ramadan');
     return res.data as Map<String, dynamic>;
