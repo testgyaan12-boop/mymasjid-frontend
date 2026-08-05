@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../services/api_client.dart';
+import '../services/push_service.dart';
 
 enum AuthStatus { uninitialized, authenticated, unauthenticated }
 
@@ -140,6 +141,7 @@ class AuthProvider extends ChangeNotifier {
     ApiClient.setToken(null);
     ApiClient.setMasjidId(null);
 
+    PushService.instance.unregisterToken();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');

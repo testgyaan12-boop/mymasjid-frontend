@@ -27,6 +27,8 @@ class NoorAlMasjidApp extends StatelessWidget {
   final GoRouter router;
   const NoorAlMasjidApp({super.key, required this.initialLocation, required this.router});
 
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -67,6 +69,7 @@ class _AppWithSplashState extends State<_AppWithSplash> {
 GoRouter buildRouter(String initialLocation) {
   return GoRouter(
     initialLocation: initialLocation,
+    navigatorKey: NoorAlMasjidApp.navigatorKey,
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/signup', builder: (_, __) => const SignupPage()),

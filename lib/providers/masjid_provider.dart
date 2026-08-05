@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/cms_service.dart';
 import '../services/api_client.dart';
+import '../services/push_service.dart';
 
 class MasjidProvider extends ChangeNotifier {
   final CmsService _cmsService = CmsService();
@@ -90,6 +91,7 @@ class MasjidProvider extends ChangeNotifier {
     await prefs.setString('current_masjid_id', id.toString());
     notifyListeners();
     await fetchCmsData();
+    PushService.instance.registerToken(id);
   }
 
   Future<void> joinMasjid(int id) async {
@@ -145,11 +147,13 @@ class MasjidProvider extends ChangeNotifier {
       }
       notifyListeners();
       await fetchCmsData();
+      PushService.instance.registerToken(int.parse(id));
       return;
     }
     // No saved masjid yet (guest on default). Show default masjid content.
     _currentMasjid = {'id': 1, 'name': 'Noor Al Masjid'};
     notifyListeners();
     await fetchCmsData();
+    PushService.instance.registerToken(1);
   }
 }

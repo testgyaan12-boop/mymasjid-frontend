@@ -1,14 +1,19 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'providers/masjid_provider.dart';
 import 'providers/theme_provider.dart';
+import 'services/push_service.dart';
 import 'app.dart';
+import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   final themeProvider = ThemeProvider();
   final authProvider = AuthProvider();
@@ -31,6 +36,9 @@ Future<void> main() async {
     initialLocation = '/login';
   }
 
+  // Push notifications service initialization (fire-and-forget).
+  unawaited(_initPush());
+
   runApp(
     MultiProvider(
       providers: [
@@ -41,4 +49,13 @@ Future<void> main() async {
       child: NoorAlMasjidApp(initialLocation: initialLocation, router: buildRouter(initialLocation)),
     ),
   );
+}
+
+Future<void> _initPush() async {
+  try {
+    PushService.instance.onOpen = (type) {
+      NoorAlMasjidApp.navigatorKey.currentState?.pushNamed('/alerts');
+    };
+    await PushService.instance.init();
+  } catch (_) {}
 }
