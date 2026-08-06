@@ -13,12 +13,52 @@ class MasjidProvider extends ChangeNotifier {
   bool _isLoading = false;
   List<Map<String, dynamic>> _masjidSearchResults = [];
   List<Map<String, dynamic>> _joinedMasjids = [];
+  List<Map<String, dynamic>> _notifications = [];
+  int _unreadCount = 0;
 
   Map<String, dynamic>? get currentMasjid => _currentMasjid;
   Map<String, dynamic> get allCmsData => _allCmsData;
   bool get isLoading => _isLoading;
   List<Map<String, dynamic>> get masjidSearchResults => _masjidSearchResults;
   List<Map<String, dynamic>> get joinedMasjids => _joinedMasjids;
+  List<Map<String, dynamic>> get notifications => _notifications;
+  int get unreadCount => _unreadCount;
+
+  Future<void> loadNotifications() async {
+    final id = _currentMasjid?['id'];
+    if (id is! int) return;
+    try {
+      final res = await _cmsService.getNotifications(masjidId: id);
+      _notifications = res.cast<Map<String, dynamic>>();
+    } catch (_) {
+      _notifications = [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> refreshUnreadCount() async {
+    final id = _currentMasjid?['id'];
+    if (id is! int) return;
+    try {
+      _unreadCount = await _cmsService.getUnreadNotificationCount(masjidId: id);
+    } catch (_) {
+      _unreadCount = 0;
+    }
+    notifyListeners();
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final id = _currentMasjid?['id'];
+    if (id is! int) return;
+    try {
+      await _cmsService.markAllNotificationsRead(masjidId: id);
+      for (final n in _notifications) {
+        n['isRead'] = true;
+      }
+      _unreadCount = 0;
+    } catch (_) {}
+    notifyListeners();
+  }
 
   Future<void> fetchCmsData() async {
     _isLoading = true;
@@ -60,6 +100,7 @@ class MasjidProvider extends ChangeNotifier {
     } catch (_) {}
     _isLoading = false;
     notifyListeners();
+    refreshUnreadCount();
   }
 
   Future<void> searchMasjids(String query) async {

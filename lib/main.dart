@@ -54,7 +54,7 @@ Future<void> main() async {
 Future<void> _initPush() async {
   try {
     PushService.instance.onOpen = (type) {
-      NoorAlMasjidApp.navigatorKey.currentState?.pushNamed('/alerts');
+      NoorAlMasjidApp.navigatorKey.currentState?.pushNamed('/notifications');
     };
     await PushService.instance.init();
   } catch (_) {}

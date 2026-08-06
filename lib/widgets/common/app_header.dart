@@ -75,6 +75,8 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
             ),
             _buildThemeToggle(context, theme),
             const SizedBox(width: 8),
+            _buildNotificationBell(context, masjid),
+            const SizedBox(width: 8),
             _buildAvatar(context, auth),
           ],
         ),
@@ -86,6 +88,24 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     return IconButton(
       icon: Icon(theme.isDark ? Icons.light_mode : Icons.dark_mode, size: 20),
       onPressed: theme.toggleTheme,
+      style: IconButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildNotificationBell(BuildContext context, MasjidProvider masjid) {
+    final count = masjid.unreadCount;
+    return IconButton(
+      icon: Badge(
+        isLabelVisible: count > 0,
+        label: Text(count > 99 ? '99+' : '$count'),
+        child: const Icon(Icons.notifications_none_rounded, size: 20),
+      ),
+      onPressed: () {
+        context.push('/notifications');
+      },
       style: IconButton.styleFrom(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

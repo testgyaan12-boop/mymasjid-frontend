@@ -14,6 +14,7 @@ import 'pages/tasbih_page.dart';
 import 'pages/saved_tasbihs_page.dart';
 import 'pages/donations_page.dart';
 import 'pages/alerts_page.dart';
+import 'pages/notifications_page.dart';
 import 'pages/events_page.dart';
 import 'pages/zakat_page.dart';
 import 'pages/about_page.dart';
@@ -83,6 +84,7 @@ GoRouter buildRouter(String initialLocation) {
           GoRoute(path: '/saved-tasbihs', builder: (_, __) => const SavedTasbihsPage()),
           GoRoute(path: '/donations', builder: (_, __) => const DonationsPage()),
           GoRoute(path: '/alerts', builder: (_, __) => const AlertsPage()),
+          GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
           GoRoute(path: '/events', builder: (_, __) => const EventsPage()),
           GoRoute(path: '/zakat', builder: (_, __) => const ZakatPage()),
           GoRoute(path: '/about', builder: (_, __) => const AboutPage()),

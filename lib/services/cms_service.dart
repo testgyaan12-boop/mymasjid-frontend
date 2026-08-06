@@ -142,4 +142,25 @@ class CmsService {
   Future<void> setSunnahBroadcast(int sunnahId) async {
     await _dio.post('/cms/sunnah-broadcast', data: {'sunnahId': sunnahId});
   }
+
+  Future<List<dynamic>> getNotifications({required int masjidId}) async {
+    final res = await _dio.get('/notifications', queryParameters: {'masjidId': masjidId});
+    return res.data as List<dynamic>;
+  }
+
+  Future<int> getUnreadNotificationCount({required int masjidId}) async {
+    try {
+      final res = await _dio.get('/notifications/unread-count', queryParameters: {'masjidId': masjidId});
+      final count = (res.data as Map<String, dynamic>)['count'];
+      return count is int ? count : int.tryParse(count.toString()) ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> markAllNotificationsRead({required int masjidId}) async {
+    try {
+      await _dio.post('/notifications/read-all', queryParameters: {'masjidId': masjidId});
+    } catch (_) {}
+  }
 }
