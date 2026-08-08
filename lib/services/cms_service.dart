@@ -49,6 +49,15 @@ class CmsService {
     await _dio.put('/cms/ramadan', data: data);
   }
 
+  Future<List<dynamic>> getRamadanDays() async {
+    final res = await _dio.get('/cms/ramadan/days');
+    return res.data as List<dynamic>;
+  }
+
+  Future<void> updateRamadanDays(List<Map<String, dynamic>> data) async {
+    await _dio.put('/cms/ramadan/days', data: data);
+  }
+
   Future<List<dynamic>> getJanazahs() async {
     final res = await _dio.get('/cms/janazahs');
     return res.data as List<dynamic>;

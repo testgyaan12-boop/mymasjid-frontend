@@ -68,6 +68,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   final _ramTaraweehCtrl = TextEditingController();
   final _ramFitraCtrl = TextEditingController();
   final _ramNoteCtrl = TextEditingController();
+  List<Map<String, dynamic>> _ramadanDays = [];
 
   // Donations
   final _donMonthCtrl = TextEditingController();
@@ -221,14 +222,16 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         _cmsService.getExpenses().catchError((_) => []),
         _cmsService.getServices().catchError((_) => []),
         _cmsService.getTeamMembers().catchError((_) => []),
+        _cmsService.getTeamMembers().catchError((_) => []),
         _cmsService.getSunnahs().catchError((_) => []),
+        _cmsService.getRamadanDays().catchError((_) => []),
       ]);
       setState(() {
         _cfg = {
           'branding': r[0], 'home': r[1], 'prayerTimes': r[2], 'jumuah': r[3],
           'ramadan': r[4], 'janazahs': r[5], 'gumshudas': r[6], 'announcements': r[7],
           'donationCauses': r[8], 'monthlyDonations': r[9], 'expenses': r[10],
-          'services': r[11], 'teamMembers': r[12], 'sunnahs': r[13],
+          'services': r[11], 'teamMembers': r[12], 'sunnahs': r[13], 'ramadanDays': r[14],
         };
       });
       _populateControllers();
@@ -245,6 +248,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         'prayerTimes': <Map<String, dynamic>>[],
         'jumuah': {'time': '01:45 PM'},
         'ramadan': {'taraweeh': '08:30 PM', 'fitraRate': '150', 'note': ''},
+        'ramadanDays': <Map<String, dynamic>>[],
         'janazahs': <Map<String, dynamic>>[],
         'gumshudas': <Map<String, dynamic>>[],
         'announcements': <Map<String, dynamic>>[],
@@ -278,6 +282,14 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     _ramTaraweehCtrl.text = r['taraweeh'] as String? ?? '08:30 PM';
     _ramFitraCtrl.text = (r['fitraRate'] as num?)?.toString() ?? r['fitraRate'] as String? ?? '150';
     _ramNoteCtrl.text = r['note'] as String? ?? '';
+
+    final rd = _cfg['ramadanDays'] as List<dynamic>?;
+    if (rd != null && rd.isNotEmpty) {
+      _ramadanDays = rd.cast<Map<String, dynamic>>();
+    } else if (_ramadanDays.isEmpty) {
+      _ramadanDays = List.generate(30, (i) => {'dayNo': i + 1, 'sehriEnd': '', 'iftarTime': ''});
+      _ramadanDays[0] = {'dayNo': 1, 'sehriEnd': '05:00 AM', 'iftarTime': '06:40 PM'};
+    }
 
     final pt = _cfg['prayerTimes'] as List<dynamic>?;
     if (pt != null && pt.isNotEmpty) {
@@ -1105,6 +1117,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
 
   // ========== RAMADAN TAB ==========
   Widget _buildRamadanTab() {
+    final theme = Theme.of(context);
     return _section('Ramadan Settings', Column(
       children: [
         _timeField('Taraweeh Time', _ramTaraweehCtrl.text, (t) => _ramTaraweehCtrl.text = t),
@@ -1113,15 +1126,100 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         const SizedBox(height: 12),
         TextFormField(controller: _ramNoteCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Ramadan Note')),
         const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: Text('Day-wise Sehri & Iftar', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            ),
+            TextButton.icon(
+              onPressed: _ramadanDays.isEmpty ? null : () => _applyAllRamadanDays(),
+              icon: const Icon(Icons.copy_all, size: 16),
+              label: const Text('Apply to All', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Set Day 1 times, then tap "Apply to All" to copy them to every day.',
+          style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 360,
+          decoration: BoxDecoration(
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: _ramadanDays.isEmpty
+              ? const Center(child: Text('No schedule loaded'))
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: _ramadanDays.length,
+                  itemBuilder: (_, i) {
+                    final d = _ramadanDays[i];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 56,
+                            child: Text('Day ${d['dayNo'] ?? i + 1}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                          ),
+                          Expanded(
+                            child: _timeField('Sehri End', d['sehriEnd'] as String? ?? '', (t) {
+                              setState(() => _ramadanDays[i] = {...d, 'sehriEnd': t});
+                            }),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _timeField('Iftar', d['iftarTime'] as String? ?? '', (t) {
+                              setState(() => _ramadanDays[i] = {...d, 'iftarTime': t});
+                            }),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        const SizedBox(height: 20),
         _saveBtn(() async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Save Ramadan Schedule?'),
+              content: const Text('This will update the day-wise Sehri & Iftar times shown to all users on the home page.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700))),
+              ],
+            ),
+          );
+          if (confirmed != true || !mounted) return;
           await _cmsService.updateRamadan({
             'taraweeh': _ramTaraweehCtrl.text,
             'fitraRate': double.tryParse(_ramFitraCtrl.text) ?? 0,
             'note': _ramNoteCtrl.text,
           });
+          await _cmsService.updateRamadanDays(
+            _ramadanDays.map((d) => {'dayNo': d['dayNo'], 'sehriEnd': d['sehriEnd'], 'iftarTime': d['iftarTime']}).toList(),
+          );
+          if (mounted) {
+            context.read<MasjidProvider>().fetchCmsData();
+            _snack('Ramadan schedule saved');
+          }
         }),
       ],
     ));
+  }
+
+  void _applyAllRamadanDays() {
+    if (_ramadanDays.isEmpty) return;
+    final first = _ramadanDays.first;
+    setState(() {
+      _ramadanDays = List.generate(30, (i) => {...first, 'dayNo': i + 1});
+    });
+    _snack('Copied Day 1 times to all days');
   }
 
   // ========== DONATIONS TAB ==========
