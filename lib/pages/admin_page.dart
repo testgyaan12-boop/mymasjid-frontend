@@ -167,6 +167,25 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     ));
   }
 
+  Future<bool> _confirmCreate(String kind, String detail) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Post $kind?'),
+        content: Text('$detail\n\nThis alert will be shown to all users and a push notification will be sent.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.primary),
+            child: const Text('Post', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _loadConfig() async {
     try {
       final r = await Future.wait([
@@ -775,6 +794,14 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           icon: const Icon(Icons.add, size: 16),
           label: const Text('Add & Broadcast', style: TextStyle(fontSize: 12)),
           onPressed: () async {
+            if (_janTitleCtrl.text.trim().isEmpty ||
+                _janTimeCtrl.text.trim().isEmpty ||
+                _janLocCtrl.text.trim().isEmpty) {
+              _snack('Title, Time and Location are required', isError: true);
+              return;
+            }
+            if (!await _confirmCreate('Janazah Alert',
+                'Title: ${_janTitleCtrl.text}\nTime: ${_janTimeCtrl.text}\nLocation: ${_janLocCtrl.text}')) return;
             try {
               await _cmsService.createJanazah({
                 'title': _janTitleCtrl.text,
@@ -845,6 +872,14 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           icon: const Icon(Icons.add, size: 16),
           label: const Text('Add Missing Person', style: TextStyle(fontSize: 12)),
           onPressed: () async {
+            if (_gumTitleCtrl.text.trim().isEmpty ||
+                _gumDetCtrl.text.trim().isEmpty ||
+                _gumContactCtrl.text.trim().isEmpty) {
+              _snack('Name, Details and Contact are required', isError: true);
+              return;
+            }
+            if (!await _confirmCreate('Missing Person Alert',
+                'Name: ${_gumTitleCtrl.text}\nDetails: ${_gumDetCtrl.text}\nContact: ${_gumContactCtrl.text}')) return;
             try {
               String? imageUrl;
               if (_gumImageBytes != null) {
@@ -906,6 +941,13 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           icon: const Icon(Icons.add, size: 16),
           label: const Text('Add Announcement', style: TextStyle(fontSize: 12)),
           onPressed: () async {
+            if (_annItemTitleCtrl.text.trim().isEmpty ||
+                _annItemDescCtrl.text.trim().isEmpty) {
+              _snack('Title and Description are required', isError: true);
+              return;
+            }
+            if (!await _confirmCreate('Announcement',
+                'Title: ${_annItemTitleCtrl.text}\nDescription: ${_annItemDescCtrl.text}')) return;
             try {
               await _cmsService.createAnnouncement({
                 'title': _annItemTitleCtrl.text,
