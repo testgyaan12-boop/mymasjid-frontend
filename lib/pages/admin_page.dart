@@ -186,6 +186,25 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     return confirmed == true;
   }
 
+  Future<bool> _confirmDelete(String kind) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete?'),
+        content: Text('Are you sure you want to delete this $kind? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _loadConfig() async {
     try {
       final r = await Future.wait([
@@ -1381,24 +1400,72 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         children: [
           addForm,
           const Divider(height: 20),
+          Text('$label (${items.length})',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
           if (items.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text('No $label yet.', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic)),
             )
           else
-            ...items.map((item) => Card(
-              margin: const EdgeInsets.only(bottom: 4),
-              child: ListTile(
-                dense: true,
-                title: itemBuilder(item).first,
-                subtitle: itemBuilder(item).length > 1 ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: itemBuilder(item).skip(1).toList(),
-                ) : null,
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                  onPressed: () => onDelete(item),
+            ...items.map((item) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                    Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.notifications_active_outlined, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DefaultTextStyle.merge(
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            child: itemBuilder(item).first,
+                          ),
+                          if (itemBuilder(item).length > 1) ...[
+                            const SizedBox(height: 2),
+                            ...itemBuilder(item).skip(1).map((w) => DefaultTextStyle.merge(
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                              child: w,
+                            )),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      onPressed: () async {
+                        final ok = await _confirmDelete(label);
+                        if (ok && mounted) onDelete(item);
+                      },
+                    ),
+                  ],
                 ),
               ),
             )),
