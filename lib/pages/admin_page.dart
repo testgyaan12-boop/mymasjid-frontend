@@ -40,9 +40,11 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   final _annDescCtrl = TextEditingController();
 
   // Sunnah
+  // Sunnah
   final _sunTitleCtrl = TextEditingController();
   final _sunRefCtrl = TextEditingController();
   final _sunTextCtrl = TextEditingController();
+  Uint8List? _sunImageBytes;
 
   // Janazah
   final _janTitleCtrl = TextEditingController();
@@ -710,28 +712,58 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     final list = (_cfg['sunnahs'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
     return _section('Daily Sunnah Broadcaster', Column(
       children: [
-          TextFormField(controller: _sunTitleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+          TextFormField(controller: _sunTitleCtrl, decoration: const InputDecoration(labelText: 'Title *', isDense: true)),
           const SizedBox(height: 8),
-          TextFormField(controller: _sunRefCtrl, decoration: const InputDecoration(labelText: 'Reference (e.g. Bukhari)')),
+          TextFormField(controller: _sunRefCtrl, decoration: const InputDecoration(labelText: 'Reference (e.g. Bukhari)', isDense: true)),
           const SizedBox(height: 8),
-          TextFormField(controller: _sunTextCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Sunnah Text')),
+          TextFormField(controller: _sunTextCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Sunnah Text *', isDense: true)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.image, size: 16),
+                label: Text(_sunImageBytes != null ? 'Photo Added' : 'Add Photo (optional)', style: const TextStyle(fontSize: 11)),
+                onPressed: () async {
+                  final picker = ImagePicker();
+                  final f = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 80);
+                  if (f != null) {
+                    final bytes = await f.readAsBytes();
+                    setState(() => _sunImageBytes = bytes);
+                  }
+                },
+              ),
+              if (_sunImageBytes != null)
+                IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _sunImageBytes = null)),
+            ],
+          ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.add),
-              label: const Text('Add to List', style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Text('Add Sunnah', style: TextStyle(fontWeight: FontWeight.w700)),
               onPressed: () async {
-                if (_sunTitleCtrl.text.isEmpty) return;
+                if (_sunTitleCtrl.text.trim().isEmpty || _sunTextCtrl.text.trim().isEmpty) {
+                  _snack('Title and Sunnah Text are required', isError: true);
+                  return;
+                }
+                if (!await _confirmCreate('Sunnah',
+                    'Title: ${_sunTitleCtrl.text}\nReference: ${_sunRefCtrl.text.isEmpty ? '-' : _sunRefCtrl.text}')) return;
                 try {
+                  String? imageUrl;
+                  if (_sunImageBytes != null) {
+                    imageUrl = await _uploadService.uploadImage(_sunImageBytes!, 'sunnah_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                  }
                   await _cmsService.createSunnah({
                     'title': _sunTitleCtrl.text,
                     'reference': _sunRefCtrl.text,
                     'text': _sunTextCtrl.text,
+                    'image': imageUrl,
                   });
                   _cfg['sunnahs'] = await _cmsService.getSunnahs();
                   if (mounted) setState(() {});
                   _sunTitleCtrl.clear(); _sunRefCtrl.clear(); _sunTextCtrl.clear();
+                  _sunImageBytes = null;
                   _snack('Sunnah added');
                 } catch (e) {
                   _snack('Error adding: $e', isError: true);
@@ -743,46 +775,101 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           if (list.isEmpty)
             const Padding(padding: EdgeInsets.all(16), child: Text('No sunnahs yet.', style: TextStyle(fontStyle: FontStyle.italic)))
           else
-            ...list.map((s) => Card(
-              margin: const EdgeInsets.only(bottom: 6),
-              child: ListTile(
-                dense: true,
-                title: Text(s['title'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-                subtitle: Text(s['reference'] as String? ?? '', style: Theme.of(context).textTheme.bodySmall),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.campaign, color: Theme.of(context).colorScheme.secondary),
-                      onPressed: () async {
-                        try {
-                          await _cmsService.setSunnahBroadcast((s['id'] as num).toInt());
-                          if (mounted) _snack('Broadcasted: ${s['title']}');
-                        } catch (e) {
-                          if (mounted) _snack('Error broadcasting: $e', isError: true);
-                        }
-                      },
-                      tooltip: 'Broadcast',
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () async {
-                        try {
-                          await _cmsService.deleteSunnah((s['id'] as num).toInt());
-                          _cfg['sunnahs'] = await _cmsService.getSunnahs();
-                          if (mounted) setState(() {});
-                          _snack('Deleted');
-                        } catch (e) {
-                          _snack('Error deleting: $e', isError: true);
-                        }
-                      },
-                    ),
+            ...list.map((s) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft, end: Alignment.centerRight,
+                  colors: [
+                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.1),
+                    Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
                   ],
                 ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  s['image'] != null && (s['image'] as String).isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 52, height: 52,
+                            child: Image.network(s['image'] as String, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _sunnahFallback(context)),
+                          ),
+                        )
+                      : _sunnahFallback(context),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s['title'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                        if ((s['text'] as String?)?.isNotEmpty ?? false)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(s['text'] as String,
+                              style: Theme.of(context).textTheme.bodySmall, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ),
+                        if ((s['reference'] as String?)?.isNotEmpty ?? false)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text('Ref: ${s['reference']}', style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.secondary, fontStyle: FontStyle.italic)),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.campaign, color: Theme.of(context).colorScheme.secondary),
+                        onPressed: () async {
+                          try {
+                            await _cmsService.setSunnahBroadcast((s['id'] as num).toInt());
+                            if (mounted) _snack('Broadcasted: ${s['title']}');
+                          } catch (e) {
+                            if (mounted) _snack('Error broadcasting: $e', isError: true);
+                          }
+                        },
+                        tooltip: 'Broadcast',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () async {
+                          final ok = await _confirmDelete('sunnah');
+                          if (!ok || !mounted) return;
+                          try {
+                            await _cmsService.deleteSunnah((s['id'] as num).toInt());
+                            _cfg['sunnahs'] = await _cmsService.getSunnahs();
+                            if (mounted) setState(() {});
+                            _snack('Deleted');
+                          } catch (e) {
+                            _snack('Error deleting: $e', isError: true);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
             )),
       ],
     ));
+  }
+
+  Widget _sunnahFallback(BuildContext context) {
+    return Container(
+      width: 52, height: 52,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(Icons.menu_book, color: Theme.of(context).colorScheme.secondary, size: 22),
+    );
   }
 
   // ========== ALERTS TAB ==========

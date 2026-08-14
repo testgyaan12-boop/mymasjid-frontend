@@ -103,6 +103,19 @@ class _SunnahPopupState extends State<SunnahPopup> {
               ),
             ),
             const SizedBox(height: 16),
+            if (_sunnah!['image'] != null && (_sunnah!['image'] as String).isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.network(
+                  _sunnah!['image'] as String,
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox(height: 140),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Text(
               _sunnah!['title'] as String? ?? '',
               style: Theme.of(context).textTheme.headlineMedium,
