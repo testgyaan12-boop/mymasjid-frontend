@@ -18,11 +18,17 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
   String _searchQuery = '';
   Map<String, bool> _completedAyats = {};
   Map<String, int> _surahCheckpoints = {};
+  Map<String, int> _juzCheckpoints = {};
+  Set<int> _completedJuz = {};
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _completedAyats = {};
+    _surahCheckpoints = {};
+    _juzCheckpoints = {};
+    _completedJuz = {};
+    _tabCtrl = TabController(length: 2, vsync: this);
     _loadSurahs();
   }
 
@@ -56,16 +62,43 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
       final v = prefs.getInt('surah_cp_$i');
       if (v != null && v > 0) _surahCheckpoints[i.toString()] = v;
     }
+    _juzCheckpoints = {};
+    for (int i = 1; i <= 30; i++) {
+      final v = prefs.getInt('juz_cp_$i');
+      if (v != null && v > 0) _juzCheckpoints[i.toString()] = v;
+    }
+    _completedJuz = {};
+    for (int i = 1; i <= 30; i++) {
+      if (prefs.getBool('juz_completed_$i') == true) _completedJuz.add(i);
+    }
     final keys = prefs.getStringList('completed_ayats');
     if (keys != null) {
       _completedAyats = {for (final k in keys) k: true};
     }
   }
 
+  Future<void> _setJuzComplete(int juzNum, bool complete) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('juz_completed_$juzNum', complete);
+    setState(() {
+      if (complete) {
+        _completedJuz.add(juzNum);
+      } else {
+        _completedJuz.remove(juzNum);
+      }
+    });
+  }
+
+  Future<void> _saveJuzCheckpoint(int juzNum, int ayahIndex) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('juz_cp_$juzNum', ayahIndex + 1);
+    _juzCheckpoints[juzNum.toString()] = ayahIndex + 1;
+  }
+
   Future<void> _saveCheckpoint(int surahNum, int ayahNum) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('surah_cp_$surahNum', ayahNum);
-    _surahCheckpoints[surahNum.toString()] = ayahNum;
+    setState(() => _surahCheckpoints[surahNum.toString()] = ayahNum);
   }
 
   Future<void> _toggleAyahComplete(String key, bool completed) async {
@@ -97,33 +130,7 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
               Expanded(
                 child: Text('Al-Quran', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
               ),
-              if (_surahCheckpoints.isNotEmpty)
-                GestureDetector(
-                  onTap: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Reset All Progress?'),
-                        content: const Text('This will clear all completed ayahs and checkpoints.'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reset All', style: TextStyle(color: Colors.red))),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) await _resetAllProgress();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text('Reset All', style: TextStyle(fontSize: 9, color: Colors.red.shade700, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              const SizedBox(width: 8),
-              Text('${_surahCheckpoints.length}/114', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              Text('${_surahCheckpoints.length}/114 • ${_juzCheckpoints.length}/30', style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.w700,
               )),
             ],
@@ -139,9 +146,9 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
-              children: List.generate(3, (i) {
-                final labels = ['Surahs', 'Juz', 'Pages'];
-                final icons = [Icons.menu_book_rounded, Icons.auto_stories_rounded, Icons.description_rounded];
+              children: List.generate(2, (i) {
+                final labels = ['Surahs', 'Juz'];
+                final icons = [Icons.menu_book_rounded, Icons.auto_stories_rounded];
                 final active = _tabCtrl.index == i;
                 return Expanded(
                   child: GestureDetector(
@@ -193,7 +200,6 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
             children: [
               _buildSurahTab(context),
               _buildJuzTab(context),
-              _buildPagesTab(context),
             ],
           ),
         ),
@@ -218,6 +224,37 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
 
     return Column(
       children: [
+        if (_surahCheckpoints.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Reset Surah Progress?'),
+                      content: const Text('This will clear all surah checkpoints.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reset', style: TextStyle(color: Colors.red))),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) await _resetSurahProgress();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('Reset Surah', style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: TextField(
@@ -329,68 +366,127 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
   }
 
   Widget _buildJuzTab(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8,
+    if (_loading) return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontFamily: 'Alegreya'),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          const CircularProgressIndicator(),
+        ],
       ),
-      itemCount: 30,
-      itemBuilder: (_, i) {
-        return Card(
-          child: InkWell(
-            onTap: () {},
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('${i + 1}', style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary,
-                  )),
-                  const SizedBox(height: 4),
-                  Text(AppConstants.juzNames[i], style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center, maxLines: 2),
-                ],
+    );
+    return Column(
+      children: [
+        if (_juzCheckpoints.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Reset Juz Progress?'),
+                      content: const Text('This will clear all para checkpoints.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reset', style: TextStyle(color: Colors.red))),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) await _resetJuzProgress();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('Reset Juz', style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.w700)),
+                ),
               ),
             ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildPagesTab(BuildContext context) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6, crossAxisSpacing: 4, mainAxisSpacing: 4,
-      ),
-      itemCount: 604,
-      itemBuilder: (_, i) {
-        final page = i + 1;
-        return InkWell(
-          onTap: () {},
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(6),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8,
             ),
-            child: Center(child: Text('$page', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11))),
+            itemCount: 30,
+            itemBuilder: (_, i) {
+              final juzNum = i + 1;
+              final isCompleted = _completedJuz.contains(juzNum);
+              return Card(
+                color: isCompleted ? Colors.green.withValues(alpha: 0.15) : null,
+                child: InkWell(
+                  onTap: () => _openJuzReader(context, juzNum),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${juzNum}', style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: isCompleted ? Colors.green : Theme.of(context).colorScheme.primary,
+                        )),
+                        const SizedBox(height: 4),
+                        Text('Para $juzNum', style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isCompleted ? Colors.green.shade700 : Theme.of(context).colorScheme.secondary,
+                          fontWeight: FontWeight.w700,
+                        )),
+                        const SizedBox(height: 2),
+                        Text(AppConstants.juzNames[i], style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center, maxLines: 2),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
-  Future<void> _resetAllProgress() async {
+  void _openJuzReader(BuildContext context, int juzNum) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _JuzReaderDialog(
+        juzNum: juzNum,
+        completedAyats: _completedAyats,
+        onToggleAyah: _toggleAyahComplete,
+        initialIndex: (_juzCheckpoints[juzNum.toString()] ?? 1) - 1,
+        onSaveCheckpoint: (idx) => _saveJuzCheckpoint(juzNum, idx),
+        onJuzComplete: (complete) => _setJuzComplete(juzNum, complete),
+      ),
+    );
+  }
+
+  Future<void> _resetSurahProgress() async {
     final prefs = await SharedPreferences.getInstance();
     for (int i = 1; i <= 114; i++) {
       await prefs.remove('surah_cp_$i');
     }
-    await prefs.remove('completed_ayats');
+    setState(() => _surahCheckpoints.clear());
+  }
+
+  Future<void> _resetJuzProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (int i = 1; i <= 30; i++) {
+      await prefs.remove('juz_cp_$i');
+      await prefs.remove('juz_completed_$i');
+    }
     setState(() {
-      _completedAyats.clear();
-      _surahCheckpoints.clear();
+      _juzCheckpoints.clear();
+      _completedJuz.clear();
     });
   }
 
@@ -405,7 +501,7 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
         checkpoint: _surahCheckpoints[surahNum.toString()] ?? 0,
         onSaveCheckpoint: (ayah) => _saveCheckpoint(surahNum, ayah),
         onToggleAyah: _toggleAyahComplete,
-        onResetAll: _resetAllProgress,
+        onResetAll: _resetSurahProgress,
         completedAyats: _completedAyats,
       ),
     );
@@ -544,6 +640,7 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
         _completed[key] = true;
       }
     }
+    if (_ayahs.isNotEmpty) widget.onSaveCheckpoint(_ayahs.last['numberInSurah'] as int);
     setState(() {});
   }
 
@@ -905,6 +1002,408 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
                       ),
                       child: Text('Close',
                         style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onPrimary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JuzReaderDialog extends StatefulWidget {
+  final int juzNum;
+  final Map<String, bool> completedAyats;
+  final Future<void> Function(String key, bool completed) onToggleAyah;
+  final int initialIndex;
+  final void Function(int index) onSaveCheckpoint;
+  final void Function(bool complete) onJuzComplete;
+  const _JuzReaderDialog({
+    required this.juzNum,
+    required this.completedAyats,
+    required this.onToggleAyah,
+    required this.initialIndex,
+    required this.onSaveCheckpoint,
+    required this.onJuzComplete,
+  });
+
+  @override
+  State<_JuzReaderDialog> createState() => _JuzReaderDialogState();
+}
+
+class _JuzReaderDialogState extends State<_JuzReaderDialog> {
+  List<Map<String, dynamic>> _ayahs = [];
+  Map<String, String> _enTranslations = {};
+  Map<String, String> _urTranslations = {};
+  bool _loading = true;
+  String _juzName = '';
+  int _totalAyahs = 0;
+  int _currentIndex = 0;
+  late Map<String, bool> _completed;
+
+  @override
+  void initState() {
+    super.initState();
+    _juzName = widget.juzNum <= 30 ? AppConstants.juzNames[widget.juzNum - 1] : '';
+    _completed = Map.from(widget.completedAyats);
+    _loadAyahs();
+  }
+
+  String _getAyahKey(int surah, int ayah) => '$surah:$ayah';
+
+  Future<void> _loadAyahs() async {
+    try {
+      final results = await Future.wait([
+        http.get(Uri.parse('https://api.alquran.cloud/v1/juz/${widget.juzNum}/quran-uthmani')),
+        http.get(Uri.parse('https://api.alquran.cloud/v1/juz/${widget.juzNum}/en.sahih')),
+        http.get(Uri.parse('https://api.alquran.cloud/v1/juz/${widget.juzNum}/ur.maududi')),
+      ]);
+      final arabic = json.decode(results[0].body)['data']['ayahs'] as List;
+      final english = json.decode(results[1].body)['data']['ayahs'] as List;
+      final urdu = json.decode(results[2].body)['data']['ayahs'] as List;
+      _ayahs = List<Map<String, dynamic>>.from(arabic);
+      _totalAyahs = _ayahs.length;
+      for (final e in english) {
+        _enTranslations['${e['surah']['number']}:${e['numberInSurah']}'] = e['text'] as String;
+      }
+      for (final u in urdu) {
+        _urTranslations['${u['surah']['number']}:${u['numberInSurah']}'] = u['text'] as String;
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _completeJuz() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark as Complete?'),
+        content: Text('Mark all ${_ayahs.length} ayahs of Para ${widget.juzNum} as completed?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Complete', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    for (final ayah in _ayahs) {
+      final key = _getAyahKey(ayah['surah']['number'] as int, ayah['numberInSurah'] as int);
+      if (!_completed.containsKey(key)) {
+        await widget.onToggleAyah(key, true);
+        _completed[key] = true;
+      }
+    }
+    widget.onJuzComplete(true);
+    setState(() {});
+  }
+
+  Future<void> _resetJuz() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Para Progress?'),
+        content: Text('Clear completion for all ayahs of Para ${widget.juzNum}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    for (final ayah in _ayahs) {
+      final key = _getAyahKey(ayah['surah']['number'] as int, ayah['numberInSurah'] as int);
+      if (_completed.containsKey(key)) {
+        await widget.onToggleAyah(key, false);
+        _completed.remove(key);
+      }
+    }
+    widget.onJuzComplete(false);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      backgroundColor: theme.colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withValues(alpha: 0.08),
+                    theme.colorScheme.surface,
+                  ],
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Para ${widget.juzNum}',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        Text(_juzName,
+                          style: theme.textTheme.bodyMedium?.copyWith(fontFamily: 'Alegreya', color: theme.colorScheme.secondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_totalAyahs > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('$_totalAyahs v',
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (_totalAyahs > 0) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: (_currentIndex + 1) / _totalAyahs,
+                          minHeight: 3,
+                          backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text('${_currentIndex + 1}/$_totalAyahs',
+                      style: theme.textTheme.labelSmall?.copyWith(fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Text('لَا إِلٰهَ إِلَّا اللهُ مُحَمَّدٌ رَسُولُ اللهِ',
+                          style: theme.textTheme.headlineSmall?.copyWith(fontFamily: 'Alegreya'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  : PageView.builder(
+                      itemCount: _ayahs.length,
+                      controller: PageController(
+                        initialPage: widget.initialIndex.clamp(0, _ayahs.length - 1),
+                      ),
+                      onPageChanged: (i) async {
+                        setState(() => _currentIndex = i);
+                        widget.onSaveCheckpoint(i);
+                        for (var x = 0; x <= i; x++) {
+                          final a = _ayahs[x];
+                          final k = _getAyahKey(a['surah']['number'] as int, a['numberInSurah'] as int);
+                          if (!_completed.containsKey(k)) {
+                            _completed[k] = true;
+                            await widget.onToggleAyah(k, true);
+                          }
+                        }
+                        final allDone = _ayahs.every((a) => _completed.containsKey(_getAyahKey(a['surah']['number'] as int, a['numberInSurah'] as int)));
+                        widget.onJuzComplete(allDone);
+                        if (mounted) setState(() {});
+                      },
+                      itemBuilder: (_, i) {
+                        final ayah = _ayahs[i];
+                        final surahNum = ayah['surah']['number'] as int;
+                        final ayahNum = ayah['numberInSurah'] as int;
+                        final key = '$surahNum:$ayahNum';
+                        final en = _enTranslations[key] ?? '';
+                        final ur = _urTranslations[key] ?? '';
+                        final surahName = ayah['surah']['englishName'] as String? ?? '';
+
+                        return Container(
+                          margin: EdgeInsets.only(left: 6, top: 4, right: i < _ayahs.length - 1 ? 2 : 6, bottom: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(1, 2)),
+                            ],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 16, 14, 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text('$surahName — Ayah $ayahNum',
+                                            style: theme.textTheme.labelSmall?.copyWith(
+                                              color: theme.colorScheme.secondary, fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(ayah['text'] as String? ?? '', textAlign: TextAlign.right,
+                                          style: TextStyle(fontSize: 24, fontFamily: 'Alegreya', height: 1.8,
+                                            color: theme.colorScheme.onSurface,
+                                          ),
+                                        ),
+                                        if (ur.isNotEmpty) ...[
+                                          const SizedBox(height: 12),
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
+                                            ),
+                                            child: Text(ur, textAlign: TextAlign.right,
+                                              style: theme.textTheme.bodyMedium?.copyWith(fontFamily: 'Alegreya', height: 1.5),
+                                            ),
+                                          ),
+                                        ],
+                                        if (en.isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary.withValues(alpha: 0.05),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.15)),
+                                            ),
+                                            child: Text(en, textAlign: TextAlign.left,
+                                              style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, height: 1.5),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final k = _getAyahKey(surahNum, ayahNum);
+                                        final newVal = !_completed.containsKey(k);
+                                        await widget.onToggleAyah(k, newVal);
+                                        setState(() { if (newVal) _completed[k] = true; else _completed.remove(k); });
+                                        final allDone = _ayahs.every((a) => _completed.containsKey(_getAyahKey(a['surah']['number'] as int, a['numberInSurah'] as int)));
+                                        widget.onJuzComplete(allDone);
+                                      },
+                                      child: Container(
+                                        width: 20, height: 20,
+                                        decoration: BoxDecoration(
+                                          color: _completed.containsKey(_getAyahKey(surahNum, ayahNum)) ? Colors.green : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: _completed.containsKey(_getAyahKey(surahNum, ayahNum)) ? null : Border.all(color: theme.colorScheme.outlineVariant, width: 1.2),
+                                        ),
+                                        child: _completed.containsKey(_getAyahKey(surahNum, ayahNum)) ? const Icon(Icons.check, size: 13, color: Colors.white) : null,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text('${i + 1}/${_ayahs.length}',
+                                      style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: theme.dividerColor)),
+              ),
+              child: Row(
+                children: [
+                  Text('${_completed.keys.where((k) => _ayahs.any((a) => _getAyahKey(a['surah']['number'] as int, a['numberInSurah'] as int) == k)).length} completed',
+                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _completeJuz,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text('Complete',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.green.shade700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: _resetJuz,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text('Reset',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.orange.shade700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text('Close',
+                        style: TextStyle(fontSize: 10, color: theme.colorScheme.onPrimary),
                       ),
                     ),
                   ),
