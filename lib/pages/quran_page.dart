@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/constants.dart';
 
@@ -581,6 +586,7 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
   late Map<String, bool> _completed;
   int _lastReadAyah = 0;
   TranslationMode _mode = TranslationMode.both;
+  final GlobalKey _shareKey = GlobalKey();
 
   @override
   void initState() {
@@ -672,6 +678,28 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
     setState(() {});
   }
 
+  Future<void> _shareSurah() async {
+    try {
+      final boundary = _shareKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null || !mounted) return;
+      final temp = await getTemporaryDirectory();
+      final file = File('${temp.path}/surah_${widget.surahNum}.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'Surah ${widget.surah['englishName'] as String? ?? widget.surahNum} — '
+              '${widget.surah['englishNameTranslation'] as String? ?? ''}\n'
+              '${widget.surah['numberOfAyahs']} ayahs • ${widget.surah['revelationType'] as String? ?? ''}\n'
+              '${widget.surah['name'] as String? ?? ''}',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not share surah')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ayahs = widget.surah['numberOfAyahs'] as int? ?? 0;
@@ -696,11 +724,17 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: Stack(
+        children: [
+          RepaintBoundary(
+            key: _shareKey,
+            child: Opacity(opacity: 0, child: IgnorePointer(child: _buildShareCard(context))),
+          ),
+          SizedBox(
+            width: double.infinity,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
             Container(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
               decoration: BoxDecoration(
@@ -737,6 +771,27 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
                         ),
                         child: Text('${widget.surah['numberOfAyahs']} v',
                           style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: _shareSurah,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.ios_share, size: 13, color: Theme.of(context).colorScheme.primary),
+                              const SizedBox(width: 3),
+                              Text('Share', style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700,
+                              )),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -1011,6 +1066,72 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
           ],
         ),
       ),
+    ],
+  ),
+  );
+  }
+
+  Widget _buildShareCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 320,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.15)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 10)],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [theme.colorScheme.primary, theme.colorScheme.secondary]),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 24),
+          ),
+          const SizedBox(height: 12),
+          Text(widget.surah['name'] as String? ?? '',
+            style: TextStyle(fontFamily: 'Alegreya', fontSize: 30, fontWeight: FontWeight.w800,
+              color: theme.colorScheme.secondary, height: 1.3),
+          ),
+          const SizedBox(height: 4),
+          Text('Surah ${widget.surah['englishName'] as String? ?? ''}',
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 2),
+          Text(widget.surah['englishNameTranslation'] as String? ?? '',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          Container(height: 1, color: theme.dividerColor),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _shareStat(theme, '${widget.surah['numberOfAyahs']}', 'Ayahs'),
+              const SizedBox(width: 24),
+              _shareStat(theme, widget.surah['revelationType'] as String? ?? '', 'Revelation'),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text('بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+            style: TextStyle(fontFamily: 'Alegreya', fontSize: 18, color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _shareStat(ThemeData theme, String value, String label) {
+    return Column(
+      children: [
+        Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: theme.colorScheme.primary)),
+        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      ],
     );
   }
 }

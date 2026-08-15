@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/masjid_provider.dart';
 
 class AlertsPage extends StatelessWidget {
@@ -70,6 +70,7 @@ class AlertsPage extends StatelessWidget {
   }
 
   Widget _buildJanazahCard(BuildContext context, Map<String, dynamic> item) {
+    final image = item['image'] as String? ?? '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -95,6 +96,25 @@ class AlertsPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(item['title'] as String? ?? '', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            if (image.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _showImageZoom(context, image, item['title'] as String? ?? ''),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    height: 140,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: image.startsWith('http')
+                        ? Image.network(image, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40))
+                        : Image.memory(base64Decode(image), fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40)),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               children: [
@@ -115,23 +135,28 @@ class AlertsPage extends StatelessWidget {
 
   Widget _buildGumshudaCard(BuildContext context, Map<String, dynamic> item) {
     final found = item['found'] == true;
+    final image = item['image'] as String? ?? '';
+    final contact = item['contact'] as String? ?? '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-                image: item['image'] != null && (item['image'] as String).isNotEmpty
-                    ? DecorationImage(image: (item['image'] as String).startsWith('http') ? NetworkImage(item['image'] as String) : MemoryImage(base64Decode(item['image'] as String)), fit: BoxFit.cover)
-                    : null,
+            GestureDetector(
+              onTap: image.isNotEmpty ? () => _showImageZoom(context, image, item['title'] as String? ?? '') : null,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                  image: image.isNotEmpty
+                      ? DecorationImage(image: image.startsWith('http') ? NetworkImage(image) : MemoryImage(base64Decode(image)), fit: BoxFit.cover)
+                      : null,
+                ),
+                child: found ? const Icon(Icons.check_circle, color: Colors.green, size: 32) : null,
               ),
-              child: found ? const Icon(Icons.check_circle, color: Colors.green, size: 32) : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -161,11 +186,22 @@ class AlertsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   if (found)
                     Text('Alhamdulillah, person has been found.', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.green, fontWeight: FontWeight.w600))
-                  else
-                    Text('Call: ${item['contact'] as String? ?? ''}', style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.amber.shade800,
-                      fontWeight: FontWeight.w600,
-                    )),
+                  else if (contact.isNotEmpty)
+                    InkWell(
+                      onTap: () => _confirmCall(context, contact, item['title'] as String? ?? ''),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.phone, size: 14, color: Colors.amber),
+                          const SizedBox(width: 4),
+                          Text('Call: $contact', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.amber.shade800,
+                            fontWeight: FontWeight.w600,
+                            decoration: TextDecoration.underline,
+                          )),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -175,7 +211,66 @@ class AlertsPage extends StatelessWidget {
     );
   }
 
+  void _showImageZoom(BuildContext context, String image, String title) {
+    final Widget img = image.startsWith('http')
+        ? Image.network(image, fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 60))
+        : Image.memory(base64Decode(image), fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 60));
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(8),
+                child: img,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 12),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.primary),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmCall(BuildContext context, String contact, String title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Call Now?'),
+        content: Text('Call $contact regarding $title?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Call'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final uri = Uri.parse('tel:$contact');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Widget _buildAnnouncementCard(BuildContext context, Map<String, dynamic> item) {
+    final image = item['image'] as String? ?? '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -205,6 +300,25 @@ class AlertsPage extends StatelessWidget {
             Text(item['title'] as String? ?? '', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text(item['description'] as String? ?? '', style: Theme.of(context).textTheme.bodySmall),
+            if (image.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _showImageZoom(context, image, item['title'] as String? ?? ''),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: double.infinity,
+                    height: 140,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: image.startsWith('http')
+                        ? Image.network(image, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40))
+                        : Image.memory(base64Decode(image), fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40)),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

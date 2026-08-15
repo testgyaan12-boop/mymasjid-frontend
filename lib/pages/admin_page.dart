@@ -50,6 +50,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   final _janTitleCtrl = TextEditingController();
   final _janTimeCtrl = TextEditingController();
   final _janLocCtrl = TextEditingController();
+  Uint8List? _janImageBytes;
 
   // Gumshuda
   final _gumTitleCtrl = TextEditingController();
@@ -62,6 +63,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   final _annItemTitleCtrl = TextEditingController();
   final _annItemDescCtrl = TextEditingController();
   String _annIcon = 'Megaphone';
+  Uint8List? _annImageBytes;
 
   // Prayer
   List<Map<String, dynamic>> _prayerTimes = [];
@@ -965,6 +967,25 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         TextFormField(controller: _janTimeCtrl, decoration: const InputDecoration(labelText: 'Time (e.g. After Dhuhr)', isDense: true)),
         const SizedBox(height: 6),
         TextFormField(controller: _janLocCtrl, decoration: const InputDecoration(labelText: 'Location', isDense: true)),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.image, size: 16),
+              label: Text(_janImageBytes != null ? 'Photo Added' : 'Add Photo (Optional)', style: const TextStyle(fontSize: 11)),
+              onPressed: () async {
+                final picker = ImagePicker();
+                final f = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 80);
+                if (f != null) {
+                  final bytes = await f.readAsBytes();
+                  setState(() => _janImageBytes = bytes);
+                }
+              },
+            ),
+            if (_janImageBytes != null)
+              IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _janImageBytes = null)),
+          ],
+        ),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           icon: const Icon(Icons.add, size: 16),
@@ -980,10 +1001,15 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 'Title: ${_janTitleCtrl.text}\nTime: ${_janTimeCtrl.text}\nLocation: ${_janLocCtrl.text}')) return;
             try {
               await _withLoader(() async {
+                String? imageUrl;
+                if (_janImageBytes != null) {
+                  imageUrl = await _uploadService.uploadImage(_janImageBytes!, 'janazah_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                }
                 await _cmsService.createJanazah({
                   'title': _janTitleCtrl.text,
                   'time': _janTimeCtrl.text,
                   'location': _janLocCtrl.text,
+                  'image': imageUrl,
                 });
                 if (mounted) {
                   context.read<MasjidProvider>().fetchCmsData();
@@ -991,6 +1017,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 }
               });
               _janTitleCtrl.clear(); _janTimeCtrl.clear(); _janLocCtrl.clear();
+              setState(() => _janImageBytes = null);
               _snack('Janazah added & broadcast');
             } catch (e) {
               _snack('Error: $e', isError: true);
@@ -1146,6 +1173,25 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           items: ['Megaphone', 'Info', 'Heart', 'Sparkles', 'Users'].map((ic) => DropdownMenuItem(value: ic, child: Text(ic, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setState(() => _annIcon = v ?? 'Megaphone'),
         ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            OutlinedButton.icon(
+              icon: const Icon(Icons.image, size: 16),
+              label: Text(_annImageBytes != null ? 'Photo Added' : 'Add Photo (Optional)', style: const TextStyle(fontSize: 11)),
+              onPressed: () async {
+                final picker = ImagePicker();
+                final f = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 80);
+                if (f != null) {
+                  final bytes = await f.readAsBytes();
+                  setState(() => _annImageBytes = bytes);
+                }
+              },
+            ),
+            if (_annImageBytes != null)
+              IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _annImageBytes = null)),
+          ],
+        ),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           icon: const Icon(Icons.add, size: 16),
@@ -1160,10 +1206,15 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 'Title: ${_annItemTitleCtrl.text}\nDescription: ${_annItemDescCtrl.text}')) return;
             try {
               await _withLoader(() async {
+                String? imageUrl;
+                if (_annImageBytes != null) {
+                  imageUrl = await _uploadService.uploadImage(_annImageBytes!, 'announcement_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                }
                 await _cmsService.createAnnouncement({
                   'title': _annItemTitleCtrl.text,
                   'description': _annItemDescCtrl.text,
                   'icon': _annIcon,
+                  'image': imageUrl,
                 });
                 if (mounted) {
                   context.read<MasjidProvider>().fetchCmsData();
@@ -1171,6 +1222,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 }
               });
               _annItemTitleCtrl.clear(); _annItemDescCtrl.clear();
+              setState(() => _annImageBytes = null);
               _snack('Announcement added & broadcast');
             } catch (e) {
               _snack('Error: $e', isError: true);
