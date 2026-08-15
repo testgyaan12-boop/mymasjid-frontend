@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -272,10 +271,12 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
                             children: [
                               Row(
                                 children: [
-                                  Text(s['englishName'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(s['englishName'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                                  ),
                                   Text(s['name'] as String? ?? '', style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     fontFamily: 'Alegreya', color: Theme.of(context).colorScheme.secondary,
+                                    fontWeight: FontWeight.w700,
                                   )),
                                 ],
                               ),
@@ -300,6 +301,21 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
                         ),
                         if (isCompleted)
                           const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check_circle, color: Colors.green, size: 20)),
+                        if (checkpoint > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: GestureDetector(
+                              onTap: () => _confirmResetSurah(context, s),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.restart_alt, color: Colors.orange, size: 18),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -394,6 +410,50 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
       ),
     );
   }
+
+  Future<void> _confirmResetSurah(BuildContext context, Map<String, dynamic> surah) async {
+    final num = surah['number'] as int;
+    final name = surah['englishName'] as String? ?? '';
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Surah Progress?'),
+        content: Text('Clear checkpoint and completed ayahs for $name?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('surah_cp_$num');
+    final keys = prefs.getStringList('completed_ayats');
+    if (keys != null) {
+      final filtered = keys.where((k) => !k.startsWith('$num:')).toList();
+      await prefs.setStringList('completed_ayats', filtered);
+      setState(() {
+        _completedAyats.removeWhere((k, _) => k.startsWith('$num:'));
+        _surahCheckpoints.remove(num.toString());
+      });
+    } else {
+      setState(() {
+        _surahCheckpoints.remove(num.toString());
+        _completedAyats.removeWhere((k, _) => k.startsWith('$num:'));
+      });
+    }
+    if (mounted) _snack('Progress reset for $name');
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 2)));
+  }
 }
 
 enum TranslationMode { arabicOnly, arabicEnglish, arabicUrdu, both }
@@ -424,7 +484,7 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
   bool _loading = true;
   late Map<String, bool> _completed;
   int _lastReadAyah = 0;
-  TranslationMode _mode = TranslationMode.arabicOnly;
+  TranslationMode _mode = TranslationMode.both;
 
   @override
   void initState() {
@@ -460,6 +520,22 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
   String _getAyahKey(int surah, int ayah) => '$surah:$ayah';
 
   Future<void> _completeSurah() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark as Complete?'),
+        content: Text('Mark all ${_ayahs.length} ayahs of ${widget.surah['englishName']} as completed?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Complete', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     for (final ayah in _ayahs) {
       final ayahNum = ayah['numberInSurah'] as int;
       final key = _getAyahKey(widget.surahNum, ayahNum);
@@ -472,6 +548,22 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
   }
 
   Future<void> _resetSurah() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Surah Progress?'),
+        content: Text('Clear completion for all ayahs of ${widget.surah['englishName']}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     for (final ayah in _ayahs) {
       final ayahNum = ayah['numberInSurah'] as int;
       final key = _getAyahKey(widget.surahNum, ayahNum);
@@ -486,8 +578,7 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
   @override
   Widget build(BuildContext context) {
     final ayahs = widget.surah['numberOfAyahs'] as int? ?? 0;
-    final completed = _completed.keys.where((k) => k.startsWith('${widget.surahNum}:')).length;
-    final pct = ayahs > 0 ? completed / ayahs : 0.0;
+    final scrollPct = ayahs > 0 ? (_lastReadAyah / ayahs).clamp(0.0, 1.0) : 0.0;
 
     final modeBtn = (IconData icon, String label, TranslationMode m) {
       final active = _mode == m;
@@ -560,14 +651,14 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(2),
                           child: LinearProgressIndicator(
-                            value: pct, minHeight: 3,
+                            value: scrollPct, minHeight: 3,
                             backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            valueColor: AlwaysStoppedAnimation(pct >= 1 ? Colors.green : Theme.of(context).colorScheme.primary),
+                            valueColor: AlwaysStoppedAnimation(scrollPct >= 1 ? Colors.green : Theme.of(context).colorScheme.primary),
                           ),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text('$completed/$ayahs',
+                      Text('$_lastReadAyah/$ayahs',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 10),
                       ),
                     ],
@@ -617,11 +708,22 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
                   : PageView.builder(
                       itemCount: _ayahs.length,
                       controller: PageController(initialPage: _lastReadAyah > 0 ? _lastReadAyah - 1 : 0),
-                      onPageChanged: (i) {
+                      onPageChanged: (i) async {
                         final ayahNum = _ayahs[i]['numberInSurah'] as int;
                         if (_lastReadAyah != ayahNum) {
                           _lastReadAyah = ayahNum;
                           widget.onSaveCheckpoint(ayahNum);
+                          for (final a in _ayahs) {
+                            final aNum = a['numberInSurah'] as int;
+                            if (aNum <= ayahNum) {
+                              final k = _getAyahKey(widget.surahNum, aNum);
+                              if (!_completed.containsKey(k)) {
+                                _completed[k] = true;
+                                await widget.onToggleAyah(k, true);
+                              }
+                            }
+                          }
+                          if (mounted) setState(() {});
                         }
                       },
                       itemBuilder: (_, i) {

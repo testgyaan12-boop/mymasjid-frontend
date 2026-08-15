@@ -42,6 +42,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (sunnahId == null) return;
     try {
       if (_isSaved(sunnahId)) {
+        final confirmed = await _confirmRemoveSunnah();
+        if (!confirmed || !mounted) return;
         final savedEntry = _savedSunnahs.firstWhere(
           (s) => (s['sunnah']?['id'] ?? s['id']) == sunnahId,
           orElse: () => <String, dynamic>{},
@@ -53,6 +55,26 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       await _loadSunnahs();
     } catch (_) {}
+  }
+
+  Future<bool> _confirmRemoveSunnah() async {
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Sunnah?'),
+        content: const Text('Are you sure you want to remove this Sunnah from your saved list?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: theme.colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   Future<void> _openMasjidSwitcher() async {
