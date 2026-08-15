@@ -71,6 +71,11 @@ class CmsService {
     await _dio.delete('/cms/janazahs/$id');
   }
 
+  Future<bool> toggleJanazahActive(int id) async {
+    final res = await _dio.put('/cms/janazahs/$id/toggle');
+    return (res.data as Map<String, dynamic>)['active'] == true;
+  }
+
   Future<List<dynamic>> getGumshudas() async {
     final res = await _dio.get('/cms/gumshudas');
     return res.data as List<dynamic>;
@@ -84,6 +89,11 @@ class CmsService {
     await _dio.delete('/cms/gumshudas/$id');
   }
 
+  Future<bool> toggleGumshudaActive(int id) async {
+    final res = await _dio.put('/cms/gumshudas/$id/toggle');
+    return (res.data as Map<String, dynamic>)['active'] == true;
+  }
+
   Future<List<dynamic>> getAnnouncements() async {
     final res = await _dio.get('/cms/announcements');
     return res.data as List<dynamic>;
@@ -95,6 +105,11 @@ class CmsService {
 
   Future<void> deleteAnnouncement(int id) async {
     await _dio.delete('/cms/announcements/$id');
+  }
+
+  Future<bool> toggleAnnouncementActive(int id) async {
+    final res = await _dio.put('/cms/announcements/$id/toggle');
+    return (res.data as Map<String, dynamic>)['active'] == true;
   }
 
   Future<List<dynamic>> getDonationCauses() async {
@@ -115,9 +130,25 @@ class CmsService {
     return res.data as List<dynamic>;
   }
 
+  Future<void> createMonthlyDonation(Map<String, dynamic> data) async {
+    await _dio.post('/cms/monthly-donations', data: data);
+  }
+
+  Future<void> deleteMonthlyDonation(int id) async {
+    await _dio.delete('/cms/monthly-donations/$id');
+  }
+
   Future<List<dynamic>> getExpenses() async {
     final res = await _dio.get('/cms/expenses');
     return res.data as List<dynamic>;
+  }
+
+  Future<void> createExpense(Map<String, dynamic> data) async {
+    await _dio.post('/cms/expenses', data: data);
+  }
+
+  Future<void> deleteExpense(int id) async {
+    await _dio.delete('/cms/expenses/$id');
   }
 
   Future<List<dynamic>> getServices() async {

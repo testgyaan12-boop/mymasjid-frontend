@@ -12,9 +12,9 @@ class AlertsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final masjid = context.watch<MasjidProvider>();
     final cms = masjid.allCmsData;
-    final janazahs = (cms['janazahs'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
-    final gumshudas = (cms['gumshudas'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
-    final announcements = (cms['announcements'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+    final janazahs = (cms['janazahs'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).where((e) => e['active'] != false).toList() ?? [];
+    final gumshudas = (cms['gumshudas'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).where((e) => e['active'] != false).toList() ?? [];
+    final announcements = (cms['announcements'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).where((e) => e['active'] != false).toList() ?? [];
 
     return DefaultTabController(
       length: 3,

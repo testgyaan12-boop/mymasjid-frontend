@@ -1,12 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:flutter/services.dart';
 import '../providers/masjid_provider.dart';
 import '../config/constants.dart';
 
 class DonationsPage extends StatelessWidget {
   const DonationsPage({super.key});
+
+  String _numStr(dynamic v) {
+    if (v == null) return '0';
+    if (v is num) {
+      if (v == v.roundToDouble()) return v.toInt().toString();
+      return v.toString();
+    }
+    return v.toString();
+  }
+
+  String _dateLabel(dynamic d) {
+    if (d == null) return '';
+    return d.toString();
+  }
+
+  Widget _qrImage(BuildContext context, String qr, double size) {
+    final isUrl = qr.startsWith('http');
+    final Widget img = isUrl
+        ? Image.network(qr, width: size, height: size, fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.qr_code_2, size: 80))
+        : Image.memory(base64Decode(qr), width: size, height: size, fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.qr_code_2, size: 80));
+    return Container(
+      color: isUrl ? null : Colors.white,
+      child: img,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +60,11 @@ class DonationsPage extends StatelessWidget {
           // Monthly collections accordion
           Card(
             child: ExpansionTile(
-              title: const Text('Jumu\'ah Collection', style: TextStyle(fontWeight: FontWeight.w700)),
+              title: const Text('Collections', style: TextStyle(fontWeight: FontWeight.w700)),
               subtitle: Text('${monthly.length} records', style: Theme.of(context).textTheme.bodySmall),
               children: monthly.map((m) => ListTile(
-                title: Text(m['month'] as String? ?? ''),
-                trailing: Text('Rs ${m['amount'] as String? ?? '0'}', style: TextStyle(
+                title: Text(_dateLabel(m['donationDate'])),
+                trailing: Text('Rs ${_numStr(m['amount'])}', style: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: m['status'] == 'Received' ? Colors.green : Theme.of(context).colorScheme.secondary,
                 )),
@@ -52,7 +80,7 @@ class DonationsPage extends StatelessWidget {
               title: const Text('Transparency & Expenses', style: TextStyle(fontWeight: FontWeight.w700)),
               children: expenses.map((e) => ListTile(
                 title: Text(e['label'] as String? ?? ''),
-                trailing: Text('Rs ${e['value'] as String? ?? '0'}/mo', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                trailing: Text('Rs ${_numStr(e['value'])}/mo', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
               )).toList(),
             ),
           ),
@@ -134,6 +162,81 @@ class DonationsPage extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 12),
+if ((cause['qrImage'] as String?)?.isNotEmpty == true)
+                      InkWell(
+                        onTap: () => _showQrDialog(context, cause),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: _qrImage(context, cause['qrImage'] as String, 180),
+                              ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.tap_and_play, size: 14, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Tap QR to scan',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showQrDialog(BuildContext context, Map<String, dynamic> cause) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(12),
+                child: _qrImage(context, cause['qrImage'] as String, 280),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              cause['title'] as String? ?? '',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: Colors.white),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'UPI: ${cause['upi'] as String? ?? ''}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.primary),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
             ),
           ],
         ),

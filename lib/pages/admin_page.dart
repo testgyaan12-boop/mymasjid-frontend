@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import '../services/biometric_service.dart';
 import '../services/cms_service.dart';
 import '../services/upload_service.dart';
@@ -21,6 +20,7 @@ class AdminPage extends StatefulWidget {
 class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   bool _authorized = false;
+  bool _saving = false;
   final _passwordCtrl = TextEditingController();
   final _cmsService = CmsService();
 
@@ -73,15 +73,15 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   List<Map<String, dynamic>> _ramadanDays = [];
 
   // Donations
-  final _donMonthCtrl = TextEditingController();
   final _donAmountCtrl = TextEditingController();
+  DateTime? _donDate;
   final _expLabelCtrl = TextEditingController();
   final _expValCtrl = TextEditingController();
   final _causeTitleCtrl = TextEditingController();
   final _causeDescCtrl = TextEditingController();
   final _causeUpiCtrl = TextEditingController();
   String _causeBadge = 'Sadaqah';
-  String? _causeQrBase64;
+  Uint8List? _causeQrBytes;
 
   // About
   final _memNameCtrl = TextEditingController();
@@ -128,7 +128,6 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     _ramTaraweehCtrl.dispose();
     _ramFitraCtrl.dispose();
     _ramNoteCtrl.dispose();
-    _donMonthCtrl.dispose();
     _donAmountCtrl.dispose();
     _expLabelCtrl.dispose();
     _expValCtrl.dispose();
@@ -201,6 +200,25 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
             child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<bool> _confirmToggle(String question) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Change Visibility?'),
+        content: Text(question),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.secondary),
+            child: const Text('Confirm', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -305,37 +323,73 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     if (!_authorized) return _buildLogin();
-    return Column(
+    return Stack(
       children: [
-        TabBar(
-          controller: _tabCtrl,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          tabs: const [
-            Tab(icon: Icon(Icons.home), text: 'Home'),
-            Tab(icon: Icon(Icons.notifications), text: 'Alerts'),
-            Tab(icon: Icon(Icons.access_time), text: 'Prayer'),
-            Tab(icon: Icon(Icons.nights_stay), text: 'Ramadan'),
-            Tab(icon: Icon(Icons.auto_awesome), text: 'Sunnah'),
-            Tab(icon: Icon(Icons.favorite), text: 'Donations'),
-            Tab(icon: Icon(Icons.palette), text: 'Branding'),
-            Tab(icon: Icon(Icons.people), text: 'About'),
+        Column(
+          children: [
+            TabBar(
+              controller: _tabCtrl,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: const [
+                Tab(icon: Icon(Icons.home), text: 'Home'),
+                Tab(icon: Icon(Icons.notifications), text: 'Alerts'),
+                Tab(icon: Icon(Icons.access_time), text: 'Prayer'),
+                Tab(icon: Icon(Icons.nights_stay), text: 'Ramadan'),
+                Tab(icon: Icon(Icons.auto_awesome), text: 'Sunnah'),
+                Tab(icon: Icon(Icons.favorite), text: 'Donations'),
+                Tab(icon: Icon(Icons.palette), text: 'Branding'),
+                Tab(icon: Icon(Icons.people), text: 'About'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(controller: _tabCtrl, children: [
+                _buildHomeTab(),
+                _buildAlertsTab(),
+                _buildPrayerTab(),
+                _buildRamadanTab(),
+                _buildSunnahTab(),
+                _buildDonationsTab(),
+                _buildBrandingTab(),
+                _buildAboutTab(),
+              ]),
+            ),
           ],
         ),
-        Expanded(
-          child: TabBarView(controller: _tabCtrl, children: [
-            _buildHomeTab(),
-            _buildAlertsTab(),
-            _buildPrayerTab(),
-            _buildRamadanTab(),
-            _buildSunnahTab(),
-            _buildDonationsTab(),
-            _buildBrandingTab(),
-            _buildAboutTab(),
-          ]),
-        ),
+        if (_saving)
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.35),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                      SizedBox(width: 14),
+                      Text('Saving...', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  Future<T> _withLoader<T>(Future<T> Function() task) async {
+    setState(() => _saving = true);
+    try {
+      return await task();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Widget _buildLogin() {
@@ -750,18 +804,20 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                 if (!await _confirmCreate('Sunnah',
                     'Title: ${_sunTitleCtrl.text}\nReference: ${_sunRefCtrl.text.isEmpty ? '-' : _sunRefCtrl.text}')) return;
                 try {
-                  String? imageUrl;
-                  if (_sunImageBytes != null) {
-                    imageUrl = await _uploadService.uploadImage(_sunImageBytes!, 'sunnah_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                  }
-                  await _cmsService.createSunnah({
-                    'title': _sunTitleCtrl.text,
-                    'reference': _sunRefCtrl.text,
-                    'text': _sunTextCtrl.text,
-                    'image': imageUrl,
+                  await _withLoader(() async {
+                    String? imageUrl;
+                    if (_sunImageBytes != null) {
+                      imageUrl = await _uploadService.uploadImage(_sunImageBytes!, 'sunnah_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                    }
+                    await _cmsService.createSunnah({
+                      'title': _sunTitleCtrl.text,
+                      'reference': _sunRefCtrl.text,
+                      'text': _sunTextCtrl.text,
+                      'image': imageUrl,
+                    });
+                    _cfg['sunnahs'] = await _cmsService.getSunnahs();
+                    if (mounted) setState(() {});
                   });
-                  _cfg['sunnahs'] = await _cmsService.getSunnahs();
-                  if (mounted) setState(() {});
                   _sunTitleCtrl.clear(); _sunRefCtrl.clear(); _sunTextCtrl.clear();
                   _sunImageBytes = null;
                   _snack('Sunnah added');
@@ -829,7 +885,7 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                         icon: Icon(Icons.campaign, color: Theme.of(context).colorScheme.secondary),
                         onPressed: () async {
                           try {
-                            await _cmsService.setSunnahBroadcast((s['id'] as num).toInt());
+                            await _withLoader(() => _cmsService.setSunnahBroadcast((s['id'] as num).toInt()));
                             if (mounted) _snack('Broadcasted: ${s['title']}');
                           } catch (e) {
                             if (mounted) _snack('Error broadcasting: $e', isError: true);
@@ -843,9 +899,11 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                           final ok = await _confirmDelete('sunnah');
                           if (!ok || !mounted) return;
                           try {
-                            await _cmsService.deleteSunnah((s['id'] as num).toInt());
-                            _cfg['sunnahs'] = await _cmsService.getSunnahs();
-                            if (mounted) setState(() {});
+                            await _withLoader(() async {
+                              await _cmsService.deleteSunnah((s['id'] as num).toInt());
+                              _cfg['sunnahs'] = await _cmsService.getSunnahs();
+                              if (mounted) setState(() {});
+                            });
                             _snack('Deleted');
                           } catch (e) {
                             _snack('Error deleting: $e', isError: true);
@@ -921,15 +979,17 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             if (!await _confirmCreate('Janazah Alert',
                 'Title: ${_janTitleCtrl.text}\nTime: ${_janTimeCtrl.text}\nLocation: ${_janLocCtrl.text}')) return;
             try {
-              await _cmsService.createJanazah({
-                'title': _janTitleCtrl.text,
-                'time': _janTimeCtrl.text,
-                'location': _janLocCtrl.text,
+              await _withLoader(() async {
+                await _cmsService.createJanazah({
+                  'title': _janTitleCtrl.text,
+                  'time': _janTimeCtrl.text,
+                  'location': _janLocCtrl.text,
+                });
+                if (mounted) {
+                  context.read<MasjidProvider>().fetchCmsData();
+                  _loadConfig();
+                }
               });
-              if (mounted) {
-                context.read<MasjidProvider>().fetchCmsData();
-                _loadConfig();
-              }
               _janTitleCtrl.clear(); _janTimeCtrl.clear(); _janLocCtrl.clear();
               _snack('Janazah added & broadcast');
             } catch (e) {
@@ -941,14 +1001,29 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
       ],
     ), (item) async {
       try {
-        await _cmsService.deleteJanazah(item['id'] as int);
-        if (mounted) {
-          context.read<MasjidProvider>().fetchCmsData();
-          _loadConfig();
-        }
+        await _withLoader(() async {
+          await _cmsService.deleteJanazah(item['id'] as int);
+          if (mounted) {
+            context.read<MasjidProvider>().fetchCmsData();
+            _loadConfig();
+          }
+        });
         _snack('Janazah deleted');
       } catch (e) {
         _snack('Error deleting: $e', isError: true);
+      }
+    }, onToggle: (item, v) async {
+      final ok = await _confirmToggle(v ? 'Show Janazah to users?' : 'Hide Janazah from users?');
+      if (!ok || !mounted) return;
+      try {
+        final active = await _withLoader(() => _cmsService.toggleJanazahActive(item['id'] as int));
+        if (mounted) {
+          context.read<MasjidProvider>().fetchCmsData();
+          _loadConfig();
+          _snack(active ? 'Janazah is now visible to users' : 'Janazah is now hidden from users');
+        }
+      } catch (e) {
+        _snack('Error toggling: $e', isError: true);
       }
     });
   }
@@ -999,20 +1074,22 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             if (!await _confirmCreate('Missing Person Alert',
                 'Name: ${_gumTitleCtrl.text}\nDetails: ${_gumDetCtrl.text}\nContact: ${_gumContactCtrl.text}')) return;
             try {
-              String? imageUrl;
-              if (_gumImageBytes != null) {
-                imageUrl = await _uploadService.uploadImage(_gumImageBytes!, 'gumshuda_${DateTime.now().millisecondsSinceEpoch}.jpg');
-              }
-              await _cmsService.createGumshuda({
-                'title': _gumTitleCtrl.text,
-                'details': _gumDetCtrl.text,
-                'contact': _gumContactCtrl.text,
-                'image': imageUrl,
+              await _withLoader(() async {
+                String? imageUrl;
+                if (_gumImageBytes != null) {
+                  imageUrl = await _uploadService.uploadImage(_gumImageBytes!, 'gumshuda_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                }
+                await _cmsService.createGumshuda({
+                  'title': _gumTitleCtrl.text,
+                  'details': _gumDetCtrl.text,
+                  'contact': _gumContactCtrl.text,
+                  'image': imageUrl,
+                });
+                if (mounted) {
+                  context.read<MasjidProvider>().fetchCmsData();
+                  _loadConfig();
+                }
               });
-              if (mounted) {
-                context.read<MasjidProvider>().fetchCmsData();
-                _loadConfig();
-              }
               _gumTitleCtrl.clear(); _gumDetCtrl.clear(); _gumContactCtrl.clear();
               _gumImageBytes = null;
               _snack('Missing person alert added & broadcast');
@@ -1025,14 +1102,29 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
       ],
     ), (item) async {
       try {
-        await _cmsService.deleteGumshuda(item['id'] as int);
-        if (mounted) {
-          context.read<MasjidProvider>().fetchCmsData();
-          _loadConfig();
-        }
+        await _withLoader(() async {
+          await _cmsService.deleteGumshuda(item['id'] as int);
+          if (mounted) {
+            context.read<MasjidProvider>().fetchCmsData();
+            _loadConfig();
+          }
+        });
         _snack('Gumshuda deleted');
       } catch (e) {
         _snack('Error deleting: $e', isError: true);
+      }
+    }, onToggle: (item, v) async {
+      final ok = await _confirmToggle(v ? 'Show Gumshuda to users?' : 'Hide Gumshuda from users?');
+      if (!ok || !mounted) return;
+      try {
+        final active = await _withLoader(() => _cmsService.toggleGumshudaActive(item['id'] as int));
+        if (mounted) {
+          context.read<MasjidProvider>().fetchCmsData();
+          _loadConfig();
+          _snack(active ? 'Gumshuda is now visible to users' : 'Gumshuda is now hidden from users');
+        }
+      } catch (e) {
+        _snack('Error toggling: $e', isError: true);
       }
     });
   }
@@ -1067,15 +1159,17 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
             if (!await _confirmCreate('Announcement',
                 'Title: ${_annItemTitleCtrl.text}\nDescription: ${_annItemDescCtrl.text}')) return;
             try {
-              await _cmsService.createAnnouncement({
-                'title': _annItemTitleCtrl.text,
-                'description': _annItemDescCtrl.text,
-                'icon': _annIcon,
+              await _withLoader(() async {
+                await _cmsService.createAnnouncement({
+                  'title': _annItemTitleCtrl.text,
+                  'description': _annItemDescCtrl.text,
+                  'icon': _annIcon,
+                });
+                if (mounted) {
+                  context.read<MasjidProvider>().fetchCmsData();
+                  _loadConfig();
+                }
               });
-              if (mounted) {
-                context.read<MasjidProvider>().fetchCmsData();
-                _loadConfig();
-              }
               _annItemTitleCtrl.clear(); _annItemDescCtrl.clear();
               _snack('Announcement added & broadcast');
             } catch (e) {
@@ -1087,14 +1181,29 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
       ],
     ), (item) async {
       try {
-        await _cmsService.deleteAnnouncement(item['id'] as int);
-        if (mounted) {
-          context.read<MasjidProvider>().fetchCmsData();
-          _loadConfig();
-        }
+        await _withLoader(() async {
+          await _cmsService.deleteAnnouncement(item['id'] as int);
+          if (mounted) {
+            context.read<MasjidProvider>().fetchCmsData();
+            _loadConfig();
+          }
+        });
         _snack('Announcement deleted');
       } catch (e) {
         _snack('Error deleting: $e', isError: true);
+      }
+    }, onToggle: (item, v) async {
+      final ok = await _confirmToggle(v ? 'Show Announcement to users?' : 'Hide Announcement from users?');
+      if (!ok || !mounted) return;
+      try {
+        final active = await _withLoader(() => _cmsService.toggleAnnouncementActive(item['id'] as int));
+        if (mounted) {
+          context.read<MasjidProvider>().fetchCmsData();
+          _loadConfig();
+          _snack(active ? 'Announcement is now visible to users' : 'Announcement is now hidden from users');
+        }
+      } catch (e) {
+        _snack('Error toggling: $e', isError: true);
       }
     });
   }
@@ -1309,6 +1418,37 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     _snack('Copied Day 1 times to all days');
   }
 
+  String _numStr(dynamic v) {
+    if (v == null) return '';
+    if (v is num) {
+      if (v == v.roundToDouble()) return v.toInt().toString();
+      return v.toString();
+    }
+    return v.toString();
+  }
+
+  String _dateLabel(dynamic d) {
+    if (d == null) return '';
+    if (d is DateTime) return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+    return d.toString();
+  }
+
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Widget _qrThumb(String qr) {
+    final isUrl = qr.startsWith('http');
+    final Widget img = isUrl
+        ? Image.network(qr, width: 80, height: 80, fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.qr_code_2, size: 40))
+        : Image.memory(base64Decode(qr), width: 80, height: 80, fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.qr_code_2, size: 40));
+    return Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: img,
+    );
+  }
+
   // ========== DONATIONS TAB ==========
   Widget _buildDonationsTab() {
     return _section('Donations Management', DefaultTabController(
@@ -1331,29 +1471,111 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     ));
   }
 
+  Future<bool> _confirmSave(String title, String detail) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(detail),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.primary),
+            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  void _reloadDonations() {
+    if (mounted) {
+      context.read<MasjidProvider>().fetchCmsData();
+      _loadConfig();
+    }
+  }
+
   Widget _buildMonthlySub() {
     final list = (_cfg['monthlyDonations'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    return _subList('Monthly Collections', list, (item) => [
-      Text(item['month'] as String? ?? ''),
-      Text('Rs ${item['amount'] as String? ?? ''}', style: Theme.of(context).textTheme.bodySmall),
-    ], Row(
+    return _subList('Collections', list, (item) => [
+      Text(_dateLabel(item['donationDate'])),
+      Text('Rs ${_numStr(item['amount'])}', style: Theme.of(context).textTheme.bodySmall),
+    ], Column(
       children: [
-        Expanded(child: TextFormField(controller: _donMonthCtrl, decoration: const InputDecoration(labelText: 'Month/Year', isDense: true))),
-        const SizedBox(width: 6),
-        Expanded(child: TextFormField(controller: _donAmountCtrl, decoration: const InputDecoration(labelText: 'Amount', isDense: true))),
-        const SizedBox(width: 6),
-        ElevatedButton(
-          child: const Text('Add', style: TextStyle(fontSize: 11)),
-          onPressed: () {
-            setState(() {
-              _cfg['monthlyDonations'] = [...list, {'month': _donMonthCtrl.text, 'amount': _donAmountCtrl.text, 'status': 'Received'}];
-            });
-            _donMonthCtrl.clear(); _donAmountCtrl.clear();
+        InkWell(
+          onTap: () async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _donDate ?? now,
+              firstDate: DateTime(now.year - 5),
+              lastDate: DateTime(now.year + 1, 12, 31),
+              helpText: 'Select Collection Date',
+            );
+            if (picked != null) setState(() => _donDate = picked);
           },
+          child: InputDecorator(
+            decoration: const InputDecoration(labelText: 'Collection Date *', isDense: true),
+            child: Row(
+              children: [
+                const Icon(Icons.event, size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_donDate == null ? 'Tap to pick date' : _dateLabel(_donDate))),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(controller: _donAmountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Amount *', isDense: true)),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Add Collection', style: TextStyle(fontSize: 12)),
+            onPressed: () async {
+              final amount = _donAmountCtrl.text.trim();
+              if (_donDate == null || amount.isEmpty) {
+                _snack('Date and Amount are required', isError: true);
+                return;
+              }
+              if (double.tryParse(amount) == null) {
+                _snack('Amount must be a number', isError: true);
+                return;
+              }
+              if (!await _confirmSave('Save Collection?', 'Date: ${_dateLabel(_donDate)}\nAmount: Rs $amount')) return;
+              try {
+                await _withLoader(() async {
+                  await _cmsService.createMonthlyDonation({
+                    'donationDate': _isoDate(_donDate!),
+                    'amount': double.parse(amount),
+                    'status': 'Received',
+                  });
+                  if (mounted) _reloadDonations();
+                });
+                setState(() => _donDate = null);
+                _donAmountCtrl.clear();
+                _snack('Collection saved');
+              } catch (e) {
+                _snack('Error: $e', isError: true);
+              }
+            },
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+          ),
         ),
       ],
-    ), (item) {
-      setState(() { _cfg['monthlyDonations'] = list.where((x) => x['month'] != item['month'] || x['amount'] != item['amount']).toList(); });
+    ), (item) async {
+      try {
+        await _withLoader(() async {
+          await _cmsService.deleteMonthlyDonation(item['id'] as int);
+          if (mounted) _reloadDonations();
+        });
+        _snack('Collection deleted');
+      } catch (e) {
+        _snack('Error deleting: $e', isError: true);
+      }
     });
   }
 
@@ -1361,25 +1583,53 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     final list = (_cfg['expenses'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
     return _subList('Expenses', list, (item) => [
       Text(item['label'] as String? ?? ''),
-      Text('Rs ${item['value'] as String? ?? ''}/mo', style: Theme.of(context).textTheme.bodySmall),
+      Text('Rs ${_numStr(item['value'])}/mo', style: Theme.of(context).textTheme.bodySmall),
     ], Row(
       children: [
         Expanded(child: TextFormField(controller: _expLabelCtrl, decoration: const InputDecoration(labelText: 'Label', isDense: true))),
         const SizedBox(width: 6),
-        Expanded(child: TextFormField(controller: _expValCtrl, decoration: const InputDecoration(labelText: 'Cost', isDense: true))),
+        Expanded(child: TextFormField(controller: _expValCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Cost', isDense: true))),
         const SizedBox(width: 6),
         ElevatedButton(
           child: const Text('Add', style: TextStyle(fontSize: 11)),
-          onPressed: () {
-            setState(() {
-              _cfg['expenses'] = [...list, {'label': _expLabelCtrl.text, 'value': _expValCtrl.text}];
-            });
-            _expLabelCtrl.clear(); _expValCtrl.clear();
+          onPressed: () async {
+            final label = _expLabelCtrl.text.trim();
+            final value = _expValCtrl.text.trim();
+            if (label.isEmpty || value.isEmpty) {
+              _snack('Label and Cost are required', isError: true);
+              return;
+            }
+            if (double.tryParse(value) == null) {
+              _snack('Cost must be a number', isError: true);
+              return;
+            }
+if (!await _confirmSave('Save Expense?', 'Label: $label\nCost: Rs $value/mo')) return;
+            try {
+              await _withLoader(() async {
+                await _cmsService.createExpense({
+                  'label': label,
+                  'value': double.parse(value),
+                });
+                if (mounted) _reloadDonations();
+              });
+              _expLabelCtrl.clear(); _expValCtrl.clear();
+              _snack('Expense saved');
+            } catch (e) {
+              _snack('Error: $e', isError: true);
+            }
           },
         ),
       ],
-    ), (item) {
-      setState(() { _cfg['expenses'] = list.where((x) => x['label'] != item['label']).toList(); });
+    ), (item) async {
+      try {
+        await _withLoader(() async {
+          await _cmsService.deleteExpense(item['id'] as int);
+          if (mounted) _reloadDonations();
+        });
+        _snack('Expense deleted');
+      } catch (e) {
+        _snack('Error deleting: $e', isError: true);
+      }
     });
   }
 
@@ -1389,13 +1639,23 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
       Text(item['title'] as String? ?? ''),
       Text('UPI: ${item['upi'] as String? ?? ''}', style: Theme.of(context).textTheme.bodySmall),
       Text(item['badge'] as String? ?? '', style: Theme.of(context).textTheme.bodySmall),
+      if ((item['qrImage'] as String?)?.isNotEmpty == true)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _qrThumb(item['qrImage'] as String),
+          ),
+        )
+      else
+        const SizedBox.shrink(),
     ], Column(
       children: [
-        TextFormField(controller: _causeTitleCtrl, decoration: const InputDecoration(labelText: 'Title', isDense: true)),
+        TextFormField(controller: _causeTitleCtrl, decoration: const InputDecoration(labelText: 'Title *', isDense: true)),
         const SizedBox(height: 6),
         TextFormField(controller: _causeDescCtrl, decoration: const InputDecoration(labelText: 'Description', isDense: true)),
         const SizedBox(height: 6),
-        TextFormField(controller: _causeUpiCtrl, decoration: const InputDecoration(labelText: 'UPI ID', isDense: true)),
+        TextFormField(controller: _causeUpiCtrl, decoration: const InputDecoration(labelText: 'UPI ID *', isDense: true)),
         const SizedBox(height: 6),
         DropdownButtonFormField<String>(
           value: _causeBadge,
@@ -1408,41 +1668,80 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
           children: [
             OutlinedButton.icon(
               icon: const Icon(Icons.qr_code, size: 16),
-              label: Text(_causeQrBase64 != null ? 'QR Added' : 'Add QR', style: const TextStyle(fontSize: 11)),
+              label: Text(_causeQrBytes != null ? 'QR Selected' : 'Add QR', style: const TextStyle(fontSize: 11)),
               onPressed: () async {
                 final picker = ImagePicker();
                 final f = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 80);
                 if (f != null) {
                   final bytes = await f.readAsBytes();
-                  setState(() => _causeQrBase64 = base64Encode(bytes));
+                  setState(() => _causeQrBytes = bytes);
                 }
               },
             ),
-            if (_causeQrBase64 != null)
-              IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _causeQrBase64 = null)),
+            if (_causeQrBytes != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.memory(_causeQrBytes!, width: 32, height: 32, fit: BoxFit.cover, gaplessPlayback: true),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.clear, size: 16),
+                onPressed: () => setState(() => _causeQrBytes = null),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 8),
         ElevatedButton.icon(
           icon: const Icon(Icons.add, size: 16),
           label: const Text('Add Cause', style: TextStyle(fontSize: 12)),
-          onPressed: () {
-            setState(() {
-              _cfg['donationCauses'] = [...list, {
-                'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                'title': _causeTitleCtrl.text, 'description': _causeDescCtrl.text,
-                'upi': _causeUpiCtrl.text, 'badge': _causeBadge, 'qrImage': _causeQrBase64,
-              }];
-            });
-            _causeTitleCtrl.clear(); _causeDescCtrl.clear(); _causeUpiCtrl.clear();
-            _causeQrBase64 = null;
-            _snack('Cause added');
+          onPressed: () async {
+            final title = _causeTitleCtrl.text.trim();
+            final upi = _causeUpiCtrl.text.trim();
+            if (title.isEmpty || upi.isEmpty) {
+              _snack('Title and UPI ID are required', isError: true);
+              return;
+            }
+            String detail = 'Title: $title\nUPI: $upi\nBadge: $_causeBadge';
+            if (_causeQrBytes != null) detail += '\nQR image: attached';
+            if (!await _confirmSave('Save Donation Cause?', detail)) return;
+            try {
+              await _withLoader(() async {
+                String? qrUrl;
+                if (_causeQrBytes != null) {
+                  qrUrl = await _uploadService.uploadImage(_causeQrBytes!, 'qr_${DateTime.now().millisecondsSinceEpoch}.png');
+                }
+                await _cmsService.createDonationCause({
+                  'title': title,
+                  'description': _causeDescCtrl.text.trim(),
+                  'upi': upi,
+                  'badge': _causeBadge,
+                  'qrImage': qrUrl,
+                });
+                if (mounted) _reloadDonations();
+              });
+              _causeTitleCtrl.clear(); _causeDescCtrl.clear(); _causeUpiCtrl.clear();
+              setState(() => _causeQrBytes = null);
+              _snack('Cause added');
+            } catch (e) {
+              _snack('Error: $e', isError: true);
+            }
           },
           style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
         ),
       ],
-    ), (item) {
-      setState(() { _cfg['donationCauses'] = list.where((x) => x['id'] != item['id']).toList(); });
+    ), (item) async {
+      try {
+        await _withLoader(() async {
+          await _cmsService.deleteDonationCause(item['id'] as int);
+          if (mounted) _reloadDonations();
+        });
+        _snack('Cause deleted');
+      } catch (e) {
+        _snack('Error deleting: $e', isError: true);
+      }
     });
   }
 
@@ -1555,8 +1854,10 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
         label: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w900)),
         onPressed: () async {
           try {
-            await onSave();
-            if (mounted) context.read<MasjidProvider>().fetchCmsData();
+            await _withLoader(() async {
+              await onSave();
+              if (mounted) context.read<MasjidProvider>().fetchCmsData();
+            });
             _snack('Saved!');
           } catch (e) {
             _snack('Error saving: $e', isError: true);
@@ -1576,8 +1877,9 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     List<Map<String, dynamic>> items,
     List<Widget> Function(Map<String, dynamic>) itemBuilder,
     Widget addForm,
-    Function(Map<String, dynamic>) onDelete,
-  ) {
+    Function(Map<String, dynamic>) onDelete, {
+    Function(Map<String, dynamic>, bool)? onToggle,
+  }) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(8),
       child: Column(
@@ -1649,7 +1951,21 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
                         final ok = await _confirmDelete(label);
                         if (ok && mounted) onDelete(item);
                       },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     ),
+                    if (onToggle != null)
+                      Tooltip(
+                        message: item['active'] != false ? 'Active — tap to hide from users' : 'Inactive — tap to show to users',
+                        child: Transform.scale(
+                          scale: 0.65,
+                          child: Switch.adaptive(
+                            value: item['active'] != false,
+                            activeTrackColor: Theme.of(context).colorScheme.secondary,
+                            onChanged: (v) => onToggle(item, v),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
