@@ -22,7 +22,7 @@ class _BottomNavShellState extends State<BottomNavShell> {
     ('/donations', Icons.favorite, 'Donate'),
   ];
 
-  static const _moreRoutes = ['/alerts', '/events', '/zakat', '/about', '/admin'];
+  static const _moreRoutes = ['/alerts', '/events', '/zakat', '/about', '/sunnah-library'];
 
   @override
   void initState() {
@@ -77,6 +77,11 @@ class _BottomNavShellState extends State<BottomNavShell> {
                 onTap: () { Navigator.pop(ctx); context.push('/zakat'); },
               ),
               ListTile(
+                leading: const Icon(Icons.auto_stories),
+                title: const Text('Sunnah Library'),
+                onTap: () { Navigator.pop(ctx); context.push('/sunnah-library'); },
+              ),
+              ListTile(
                 leading: const Icon(Icons.info),
                 title: const Text('About Us'),
                 onTap: () { Navigator.pop(ctx); context.push('/about'); },
@@ -85,11 +90,6 @@ class _BottomNavShellState extends State<BottomNavShell> {
                 leading: const Icon(Icons.share),
                 title: const Text('Share App'),
                 onTap: () { Navigator.pop(ctx); _shareApp(); },
-              ),
-              ListTile(
-                leading: const Icon(Icons.shield),
-                title: const Text('Management Portal'),
-                onTap: () { Navigator.pop(ctx); context.push('/admin'); },
               ),
             ],
           ),

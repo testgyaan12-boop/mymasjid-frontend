@@ -19,6 +19,7 @@ import 'pages/events_page.dart';
 import 'pages/zakat_page.dart';
 import 'pages/about_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/sunnah_library_page.dart';
 import 'pages/admin_page.dart';
 import 'pages/tools/noor_ai_page.dart';
 import 'pages/tools/summarizer_page.dart';
@@ -90,6 +91,7 @@ GoRouter buildRouter(String initialLocation) {
           GoRoute(path: '/about', builder: (_, __) => const AboutPage()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
           GoRoute(path: '/admin', builder: (_, __) => const AdminPage()),
+          GoRoute(path: '/sunnah-library', builder: (_, __) => const SunnahLibraryPage()),
           GoRoute(path: '/tools/noor-ai', builder: (_, __) => const NoorAIPage()),
           GoRoute(path: '/tools/summarizer', builder: (_, __) => const SummarizerPage()),
         ],

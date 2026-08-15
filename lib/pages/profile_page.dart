@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/masjid_provider.dart';
-import '../services/cms_service.dart';
 import '../services/user_service.dart';
 import '../widgets/common/masjid_switcher_sheet.dart';
 
@@ -16,7 +15,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   List<Map<String, dynamic>> _savedSunnahs = [];
-  List<Map<String, dynamic>> _librarySunnahs = [];
   bool _loading = true;
 
   @override
@@ -29,12 +27,6 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final data = await UserService().getSavedSunnahs();
       setState(() => _savedSunnahs = data.cast<Map<String, dynamic>>());
-    } catch (_) {
-      // fallback
-    }
-    try {
-      final data = await CmsService().getSunnahs();
-      setState(() => _librarySunnahs = data.cast<Map<String, dynamic>>());
     } catch (_) {
       // fallback
     }
@@ -416,106 +408,27 @@ class _ProfilePageState extends State<ProfilePage> {
 
           const SizedBox(height: 24),
 
-          // Sunnah Library section header
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
+          // Management Portal
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: ListTile(
+              onTap: () => context.push('/admin'),
+              leading: Container(
+                width: 42, height: 42,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: theme.colorScheme.secondary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.auto_stories_rounded, color: theme.colorScheme.primary, size: 18),
+                child: Icon(Icons.shield_rounded, size: 22, color: theme.colorScheme.secondary),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text('Sunnah Library', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-              ),
-            ],
+              title: Text('Management Portal', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+              subtitle: Text('Admin settings, alerts, donations & more', style: theme.textTheme.bodySmall),
+              trailing: const Icon(Icons.chevron_right_rounded),
+            ),
           ),
-          const SizedBox(height: 12),
 
-          if (_loading)
-            const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
-          else if (_librarySunnahs.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.menu_book_outlined, size: 36, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No sunnahs published yet. Admin can add them from the Sunnah tab.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            )
-          else
-            ..._librarySunnahs.map((s) {
-              final sid = s['id'] as int?;
-              final saved = sid != null && _isSaved(sid);
-              final image = s['image'] as String? ?? '';
-              final title = s['title'] as String? ?? '';
-              final text = s['text'] as String? ?? '';
-              final reference = s['reference'] as String? ?? '';
-              return Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (image.isNotEmpty)
-                      Image.network(
-                        image,
-                        height: 100,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
-                    ListTile(
-                      leading: Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.secondary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, size: 18, color: theme.colorScheme.secondary),
-                      ),
-                      title: Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                      subtitle: (text.isNotEmpty || reference.isNotEmpty)
-                          ? Text(
-                              text.isNotEmpty ? text : reference,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            )
-                          : null,
-                      trailing: IconButton(
-                        icon: Icon(
-                          saved ? Icons.bookmark_rounded : Icons.bookmark_add_outlined,
-                          color: saved ? theme.colorScheme.secondary : theme.colorScheme.primary,
-                        ),
-                        onPressed: sid == null ? null : () => _toggleSave(s),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           OutlinedButton.icon(
             onPressed: _confirmSignOut,
