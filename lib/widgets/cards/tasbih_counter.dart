@@ -25,11 +25,6 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
   final ScrollController _dhikrCtrl = ScrollController();
 
   static const int beadsPerSet = 33;
-  static const List<Map<String, String>> _defaultDhikrs = [
-    {'title': 'SubhanAllah', 'arabic': 'سُبْحَانَ اللَّهِ', 'transliteration': 'Glory be to Allah'},
-    {'title': 'Alhamdulillah', 'arabic': 'الْحَمْدُ لِلَّهِ', 'transliteration': 'Praise be to Allah'},
-    {'title': 'Allahu Akbar', 'arabic': 'اللَّهُ أَكْبَرُ', 'transliteration': 'Allah is the Greatest'},
-  ];
 
   @override
   void initState() {
@@ -118,12 +113,14 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
       }
     }
 
-    if (_count % beadsPerSet == 0 && _defaultDhikrs.any((d) => d['title'] == _selectedDhikr)) {
-      final currentIdx = _defaultDhikrs.indexWhere((d) => d['title'] == _selectedDhikr);
-      final nextIdx = (currentIdx + 1) % _defaultDhikrs.length;
-      Future.delayed(const Duration(milliseconds: 400), () {
-        if (mounted) _selectDhikr(_defaultDhikrs[nextIdx]['title']!);
-      });
+    if (_count % beadsPerSet == 0 && _allAdhkars.isNotEmpty) {
+      final currentIdx = _allAdhkars.indexWhere((d) => d['title'] == _selectedDhikr);
+      if (currentIdx >= 0) {
+        final nextIdx = (currentIdx + 1) % _allAdhkars.length;
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (mounted) _selectDhikr(_allAdhkars[nextIdx]['title']!);
+        });
+      }
     }
   }
 
@@ -424,7 +421,7 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (_defaultDhikrs.any((d) => d['title'] == _selectedDhikr))
+                          if (_allAdhkars.any((d) => d['title'] == _selectedDhikr))
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                               decoration: BoxDecoration(
@@ -442,7 +439,7 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
                                 ],
                               ),
                             ),
-                          if (_defaultDhikrs.any((d) => d['title'] == _selectedDhikr))
+                          if (_allAdhkars.any((d) => d['title'] == _selectedDhikr))
                             const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -577,12 +574,14 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
 
   Widget _buildDhikrPill(Map<String, dynamic> a, ThemeData theme, int index) {
     final isSelected = _selectedDhikr == a['title'];
+    final isCustom = index >= AppConstants.commonAdhkars.length;
     final primary = theme.colorScheme.primary;
     final secondary = theme.colorScheme.secondary;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
       child: GestureDetector(
         onTap: () => _selectDhikr(a['title'] as String? ?? ''),
+        onLongPress: isCustom ? () => _confirmDeleteDhikr(a) : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: 140,
@@ -624,6 +623,18 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.check_rounded, size: 11, color: Colors.white),
+                    )
+                  else if (isCustom)
+                    GestureDetector(
+                      onTap: () => _confirmDeleteDhikr(a),
+                      child: Container(
+                        width: 16, height: 16,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.close_rounded, size: 11, color: theme.colorScheme.error),
+                      ),
                     ),
                 ],
               ),
@@ -639,6 +650,41 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDeleteDhikr(Map<String, dynamic> a) async {
+    final title = a['title'] as String? ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Adhkar?'),
+        content: Text('Delete "$title" from your list?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final id = a['id'];
+    try {
+      if (id != null) {
+        await UserService().deleteAdhkar(id as int);
+      }
+      setState(() {
+        _userAdhkars = _userAdhkars.where((x) => x['title'] != title).toList();
+        if (_selectedDhikr == title) _selectedDhikr = AppConstants.commonAdhkars.first['title']!;
+      });
+      _saveSession();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete — check your connection')),
+      );
+    }
   }
 
   Widget _buildAddPill(ThemeData theme) {
@@ -710,7 +756,7 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
     final arabicCtrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('New Adhkar'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -721,20 +767,28 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
-              if (!context.read<AuthProvider>().isAuthenticated) {
-                final ok = await ensureSignedIn(context, action: 'custom adhkar');
-                if (!ok) {
-                  if (context.mounted) Navigator.pop(context);
-                  return;
-                }
-                if (!context.mounted) return;
-                Navigator.pop(context);
+              final title = titleCtrl.text.trim();
+              final arabic = arabicCtrl.text.trim();
+              if (title.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Please enter a title')));
                 return;
               }
-              final entry = {'title': titleCtrl.text, 'arabic': arabicCtrl.text, 'transliteration': ''};
+              final existing = _allAdhkars.indexWhere((a) =>
+                (a['title'] as String? ?? '').toLowerCase() == title.toLowerCase());
+              if (existing >= 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(content: Text('"$title" already exists'), backgroundColor: Colors.orange.shade700),
+                );
+                return;
+              }
+              if (!context.read<AuthProvider>().isAuthenticated) {
+                final ok = await ensureSignedIn(context, action: 'custom adhkar');
+                if (!ok || !context.mounted) return;
+              }
+              final entry = {'title': title, 'arabic': arabic, 'transliteration': ''};
               try {
                 await UserService().createAdhkar(entry);
                 final adhkars = await UserService().getAdhkars();
@@ -742,7 +796,7 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
               } catch (_) {
                 setState(() => _userAdhkars = [..._userAdhkars, entry]);
               }
-              if (context.mounted) Navigator.pop(context);
+              if (ctx.mounted) Navigator.of(ctx).pop();
             },
             child: const Text('Save'),
           ),
