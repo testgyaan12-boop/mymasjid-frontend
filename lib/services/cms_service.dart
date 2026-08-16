@@ -156,9 +156,30 @@ class CmsService {
     return res.data as List<dynamic>;
   }
 
+  Future<void> createService(Map<String, dynamic> data) async {
+    await _dio.post('/cms/services', data: data);
+  }
+
+  Future<void> deleteService(int id) async {
+    await _dio.delete('/cms/services/$id');
+  }
+
   Future<List<dynamic>> getTeamMembers() async {
     final res = await _dio.get('/cms/team-members');
     return res.data as List<dynamic>;
+  }
+
+  Future<void> createTeamMember(Map<String, dynamic> data) async {
+    await _dio.post('/cms/team-members', data: data);
+  }
+
+  Future<void> deleteTeamMember(int id) async {
+    await _dio.delete('/cms/team-members/$id');
+  }
+
+  Future<void> updateMasjidAbout(Map<String, dynamic> data) async {
+    final id = ApiClient.masjidId;
+    await _dio.put('/masjids/$id/about', data: data);
   }
 
   Future<List<dynamic>> getSunnahs() async {

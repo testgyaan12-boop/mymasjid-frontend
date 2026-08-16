@@ -1,8 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:flutter/services.dart';
 import '../providers/masjid_provider.dart';
 
 class AboutPage extends StatelessWidget {
@@ -12,21 +12,30 @@ class AboutPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final masjid = context.watch<MasjidProvider>();
     final cms = masjid.allCmsData;
+    final current = masjid.currentMasjid ?? {};
+    final masjidName = current['name'] as String? ?? 'Our Masjid';
+    final aboutText = current['about'] as String? ?? '';
+    final visionText = current['vision'] as String? ?? '';
     final team = (cms['teamMembers'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
     final services = (cms['services'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+
+    final sadr = _byRole(team, ['Sadr']);
+    final imamMuzzinTeachers = team.where((m) {
+      final r = (m['role'] as String? ?? '').toLowerCase();
+      return r.contains('imam') || r.contains('muzzin') || r.contains('teacher') || r.contains('secretary');
+    }).toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Center(
             child: Column(
               children: [
                 Text('About Us', style: Theme.of(context).textTheme.displayMedium),
                 const SizedBox(height: 4),
-                Text('Our Journey & Mission', style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                Text(masjidName, style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.secondary,
                   fontWeight: FontWeight.w700,
                 )),
@@ -35,7 +44,6 @@ class AboutPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Hero
           Container(
             height: 200,
             decoration: BoxDecoration(
@@ -50,16 +58,14 @@ class AboutPage extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // Vision & Values
-          Text(
-            'Noor Al Masjid was established with the vision of creating a lighthouse for the community—a place where spiritual growth, intellectual enlightenment, and communal harmony converge.',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          const SizedBox(height: 16),
+          if (aboutText.isNotEmpty) ...[
+            Text(aboutText, style: Theme.of(context).textTheme.bodyLarge),
+            const SizedBox(height: 16),
+          ],
 
           Row(
             children: [
-              Expanded(child: _buildInfoCard(context, 'Our Vision', 'To be a leading center for Islamic learning and practice.', Theme.of(context).colorScheme.secondary)),
+              Expanded(child: _buildInfoCard(context, 'Our Vision', visionText.isEmpty ? 'Serving the community with faith, knowledge, and compassion.' : visionText, Theme.of(context).colorScheme.secondary)),
               const SizedBox(width: 12),
               Expanded(child: _buildInfoCard(context, 'Our Values', 'Rooted in the Quran and Sunnah, we prioritize excellence (Ihsan), inclusivity, and compassion.', Theme.of(context).colorScheme.primary)),
             ],
@@ -67,7 +73,6 @@ class AboutPage extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Services
           if (services.isNotEmpty) ...[
             Center(
               child: Column(
@@ -108,7 +113,6 @@ class AboutPage extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Team
           if (team.isNotEmpty) ...[
             Center(
               child: Column(
@@ -119,12 +123,37 @@ class AboutPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            ...team.map((m) => _buildTeamMember(context, m)),
+
+            if (sadr.isNotEmpty) ...[
+              Row(
+                children: [
+                  Expanded(child: _buildTeamCard(context, sadr[0])),
+                  if (sadr.length > 1) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildTeamCard(context, sadr[1])),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            if (imamMuzzinTeachers.isNotEmpty)
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.85,
+                ),
+                itemCount: imamMuzzinTeachers.length,
+                itemBuilder: (_, i) => _buildTeamCard(context, imamMuzzinTeachers[i]),
+              ),
           ],
 
           const SizedBox(height: 24),
 
-          // Contact
           Center(
             child: Column(
               children: [
@@ -137,17 +166,16 @@ class AboutPage extends StatelessWidget {
 
           Row(
             children: [
-              Expanded(child: _buildContactCard(context, Icons.location_on, 'Visit Us', '123 Peace Avenue, Serenity City', Theme.of(context).colorScheme.primary)),
+              Expanded(child: _buildContactCard(context, Icons.location_on, 'Visit Us', current['address'] as String? ?? '123 Peace Avenue, Serenity City', Theme.of(context).colorScheme.primary)),
               const SizedBox(width: 8),
-              Expanded(child: _buildContactCard(context, Icons.phone, 'Call Us', '+91 98450 12345', Theme.of(context).colorScheme.secondary)),
+              Expanded(child: _buildContactCard(context, Icons.phone, 'Call Us', current['phone'] as String? ?? '+91 98450 12345', Theme.of(context).colorScheme.secondary)),
               const SizedBox(width: 8),
-              Expanded(child: _buildContactCard(context, Icons.email, 'Email Us', 'info@nooralmasjid.com', Theme.of(context).colorScheme.primary)),
+              Expanded(child: _buildContactCard(context, Icons.email, 'Email Us', current['email'] as String? ?? 'info@nooralmasjid.com', Theme.of(context).colorScheme.primary)),
             ],
           ),
 
           const SizedBox(height: 24),
 
-          // Share
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -168,6 +196,13 @@ class AboutPage extends StatelessWidget {
     );
   }
 
+  List<Map<String, dynamic>> _byRole(List<Map<String, dynamic>> team, List<String> keywords) {
+    return team.where((m) {
+      final r = (m['role'] as String? ?? '').toLowerCase();
+      return keywords.any((k) => r.contains(k.toLowerCase()));
+    }).toList();
+  }
+
   Widget _buildInfoCard(BuildContext context, String title, String desc, Color accent) {
     return Card(
       child: Padding(
@@ -184,71 +219,63 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTeamMember(BuildContext context, Map<String, dynamic> member) {
+  Widget _buildTeamCard(BuildContext context, Map<String, dynamic> member) {
+    final image = member['image'] as String? ?? '';
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Icon(Icons.person, color: Theme.of(context).colorScheme.secondary),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: image.isNotEmpty ? () => _showImageZoom(context, image, member['name'] as String? ?? '') : null,
+              child: CircleAvatar(
+                radius: 34,
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                backgroundImage: image.isNotEmpty
+                    ? (image.startsWith('http') ? NetworkImage(image) : MemoryImage(base64Decode(image)))
+                    : null,
+                child: image.isEmpty ? Icon(Icons.person, color: Theme.of(context).colorScheme.secondary, size: 34) : null,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(member['name'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Text(member['role'] as String? ?? '', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.secondary), textAlign: TextAlign.center, maxLines: 2),
+          ],
         ),
-        title: Text(member['name'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        subtitle: Text(member['role'] as String? ?? ''),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => _showMemberDetail(context, member),
       ),
     );
   }
 
-  void _showMemberDetail(BuildContext context, Map<String, dynamic> member) {
-    showModalBottomSheet(
+  void _showImageZoom(BuildContext context, String image, String title) {
+    final Widget img = image.startsWith('http')
+        ? Image.network(image, fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 60))
+        : Image.memory(base64Decode(image), fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 60));
+    showDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(member['name'] as String? ?? '', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 4),
-            Text(member['role'] as String? ?? '', style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.secondary,
-              fontWeight: FontWeight.w700,
-            )),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.email, size: 16),
-                const SizedBox(width: 8),
-                Text(member['email'] as String? ?? ''),
-              ],
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(8),
+                child: img,
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.phone, size: 16),
-                const SizedBox(width: 8),
-                Text(member['mobile'] as String? ?? ''),
-              ],
+            const SizedBox(height: 12),
+            Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 12),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.primary),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
             ),
-            if (member['responsibilities'] != null) ...[
-              const SizedBox(height: 16),
-              Text('Responsibilities', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              ...(member['responsibilities'] as List<dynamic>).map((r) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    Icon(Icons.check_circle, size: 16, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(r as String? ?? ''),
-                  ],
-                ),
-              )),
-            ],
           ],
         ),
       ),

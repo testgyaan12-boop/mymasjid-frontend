@@ -88,6 +88,9 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
   // About
   final _memNameCtrl = TextEditingController();
   String _memRole = 'Sadr (President)';
+  Uint8List? _memImageBytes;
+  final _aboutCtrl = TextEditingController();
+  final _visionCtrl = TextEditingController();
   final _servTitleCtrl = TextEditingController();
   final _servDescCtrl = TextEditingController();
 
@@ -137,6 +140,8 @@ class _AdminPageState extends State<AdminPage> with SingleTickerProviderStateMix
     _causeDescCtrl.dispose();
     _causeUpiCtrl.dispose();
     _memNameCtrl.dispose();
+    _aboutCtrl.dispose();
+    _visionCtrl.dispose();
     _servTitleCtrl.dispose();
     _servDescCtrl.dispose();
     super.dispose();
@@ -1799,23 +1804,87 @@ if (!await _confirmSave('Save Expense?', 'Label: $label\nCost: Rs $value/mo')) r
 
   // ========== ABOUT TAB ==========
   Widget _buildAboutTab() {
-    return _section('About Page Management', DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          const TabBar(tabs: [
-            Tab(text: 'Management Team'), Tab(text: 'Services'),
-          ]),
-          SizedBox(
-            height: 500,
-            child: TabBarView(children: [
-              _buildTeamSub(),
-              _buildServiceSub(),
-            ]),
+    final masjid = context.read<MasjidProvider>().currentMasjid;
+    final about = masjid?['about'] as String? ?? '';
+    final vision = masjid?['vision'] as String? ?? '';
+    if (_aboutCtrl.text.isEmpty) _aboutCtrl.text = about;
+    if (_visionCtrl.text.isEmpty) _visionCtrl.text = vision;
+
+    return _section('About Page Management', Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionCard('About Masjid & Vision', Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextFormField(
+              controller: _aboutCtrl,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: 'About the Masjid', border: OutlineInputBorder(), alignLabelWithHint: true),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _visionCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Vision / Values', border: OutlineInputBorder(), alignLabelWithHint: true),
+            ),
+            const SizedBox(height: 12),
+            _saveBtn(() async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Save About Masjid?'),
+                  content: const Text('Are you sure you want to update the About Masjid and Vision shown to all users?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+                  ],
+                ),
+              );
+              if (confirmed != true || !mounted) return;
+              await _cmsService.updateMasjidAbout({
+                'about': _aboutCtrl.text,
+                'vision': _visionCtrl.text,
+              });
+              await context.read<MasjidProvider>().refreshMasjidDetails();
+            }),
+          ],
+        )),
+        const SizedBox(height: 14),
+        _sectionCard('Leadership & Staff (with Photos)', DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              const TabBar(tabs: [
+                Tab(text: 'Management Team'), Tab(text: 'Services'),
+              ]),
+              SizedBox(
+                height: 500,
+                child: TabBarView(children: [
+                  _buildTeamSub(),
+                  _buildServiceSub(),
+                ]),
+              ),
+            ],
           ),
-        ],
-      ),
+        )),
+      ],
     ));
+  }
+
+  Widget _sectionCard(String title, Widget child) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 12),
+            child,
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildTeamSub() {
@@ -1823,37 +1892,102 @@ if (!await _confirmSave('Save Expense?', 'Label: $label\nCost: Rs $value/mo')) r
     return _subList('Team Members', list, (item) => [
       Text(item['name'] as String? ?? ''),
       Text(item['role'] as String? ?? '', style: Theme.of(context).textTheme.bodySmall),
-    ], Row(
+    ], Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: TextFormField(controller: _memNameCtrl, decoration: const InputDecoration(labelText: 'Name', isDense: true))),
-        const SizedBox(width: 6),
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            value: _memRole,
-            decoration: const InputDecoration(labelText: 'Role', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
-            items: ['Sadr (President)', 'Head Imam', 'Naib Imam', 'Secretary'].map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 11)))).toList(),
-            onChanged: (v) => setState(() => _memRole = v ?? 'Sadr (President)'),
-          ),
+        Row(
+          children: [
+            Expanded(child: TextFormField(controller: _memNameCtrl, decoration: const InputDecoration(labelText: 'Name', isDense: true))),
+            const SizedBox(width: 6),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _memRole,
+                decoration: const InputDecoration(labelText: 'Role', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+                items: ['Sadr (President)', 'Naib Sadr (Vice President)', 'Head Imam', 'Imam', 'Muzzin', 'Teacher', 'Secretary'].map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 11)))).toList(),
+                onChanged: (v) => setState(() => _memRole = v ?? 'Sadr (President)'),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        ElevatedButton(
-          child: const Text('Add', style: TextStyle(fontSize: 11)),
-          onPressed: () {
-            setState(() {
-              _cfg['teamMembers'] = [...list, {
-                'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                'name': _memNameCtrl.text, 'role': _memRole,
-                'email': '', 'mobile': '', 'responsibilities': [], 'image': '',
-              }];
-            });
-            _memNameCtrl.clear();
-            _snack('Member added');
-          },
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            if (_memImageBytes != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(_memImageBytes!, width: 44, height: 44, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 8),
+            ],
+            TextButton.icon(
+              icon: const Icon(Icons.photo, size: 16),
+              label: Text(_memImageBytes != null ? 'Change Photo' : 'Add Photo (Optional)'),
+              onPressed: _pickMemberPhoto,
+            ),
+            if (_memImageBytes != null) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.close, size: 16, color: Colors.red),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() => _memImageBytes = null),
+              ),
+            ],
+            const Spacer(),
+            ElevatedButton(
+              child: const Text('Add', style: TextStyle(fontSize: 11)),
+              onPressed: () async {
+                if (_memNameCtrl.text.trim().isEmpty) {
+                  _snack('Name is required', isError: true);
+                  return;
+                }
+                try {
+                  await _withLoader(() async {
+                    String? imageUrl;
+                    if (_memImageBytes != null) {
+                      imageUrl = await _uploadService.uploadImage(_memImageBytes!, 'member_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                    }
+                    await _cmsService.createTeamMember({
+                      'name': _memNameCtrl.text.trim(),
+                      'role': _memRole,
+                      'email': '',
+                      'mobile': '',
+                      'image': imageUrl,
+                    });
+                    if (mounted) context.read<MasjidProvider>().fetchCmsData();
+                    _loadConfig();
+                  });
+                  setState(() {
+                    _memNameCtrl.clear();
+                    _memImageBytes = null;
+                  });
+                  _snack('Member added');
+                } catch (e) {
+                  _snack('Error adding: $e', isError: true);
+                }
+              },
+            ),
+          ],
         ),
       ],
-    ), (item) {
-      setState(() { _cfg['teamMembers'] = list.where((x) => x['id'] != item['id']).toList(); });
+    ), (item) async {
+      try {
+        await _withLoader(() async {
+          await _cmsService.deleteTeamMember(item['id'] as int);
+          if (mounted) context.read<MasjidProvider>().fetchCmsData();
+          _loadConfig();
+        });
+        _snack('Member deleted');
+      } catch (e) {
+        _snack('Error deleting: $e', isError: true);
+      }
     });
+  }
+
+  Future<void> _pickMemberPhoto() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 80);
+    if (picked == null || !mounted) return;
+    final bytes = await picked.readAsBytes();
+    if (mounted) setState(() => _memImageBytes = bytes);
   }
 
   Widget _buildServiceSub() {
@@ -1869,17 +2003,42 @@ if (!await _confirmSave('Save Expense?', 'Label: $label\nCost: Rs $value/mo')) r
         const SizedBox(width: 6),
         ElevatedButton(
           child: const Text('Add', style: TextStyle(fontSize: 11)),
-          onPressed: () {
-            setState(() {
-              _cfg['services'] = [...list, {'title': _servTitleCtrl.text, 'description': _servDescCtrl.text, 'icon': 'Heart'}];
-            });
-            _servTitleCtrl.clear(); _servDescCtrl.clear();
-            _snack('Service added');
+          onPressed: () async {
+            if (_servTitleCtrl.text.trim().isEmpty) {
+              _snack('Title is required', isError: true);
+              return;
+            }
+            try {
+              await _withLoader(() async {
+                await _cmsService.createService({
+                  'title': _servTitleCtrl.text.trim(),
+                  'description': _servDescCtrl.text.trim(),
+                  'icon': 'Heart',
+                });
+                if (mounted) context.read<MasjidProvider>().fetchCmsData();
+                _loadConfig();
+              });
+              setState(() {
+                _servTitleCtrl.clear(); _servDescCtrl.clear();
+              });
+              _snack('Service added');
+            } catch (e) {
+              _snack('Error adding: $e', isError: true);
+            }
           },
         ),
       ],
-    ), (item) {
-      setState(() { _cfg['services'] = list.where((x) => x['title'] != item['title']).toList(); });
+    ), (item) async {
+      try {
+        await _withLoader(() async {
+          await _cmsService.deleteService(item['id'] as int);
+          if (mounted) context.read<MasjidProvider>().fetchCmsData();
+          _loadConfig();
+        });
+        _snack('Service deleted');
+      } catch (e) {
+        _snack('Error deleting: $e', isError: true);
+      }
     });
   }
 

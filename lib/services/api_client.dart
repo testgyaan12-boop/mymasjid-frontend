@@ -60,4 +60,5 @@ class ApiClient {
 
   static void setToken(String? token) => _token = token;
   static void setMasjidId(String? id) => _masjidId = id;
+  static String? get masjidId => _masjidId;
 }

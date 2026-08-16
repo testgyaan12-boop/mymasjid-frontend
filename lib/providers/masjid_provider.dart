@@ -133,8 +133,21 @@ class MasjidProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('current_masjid_id', id.toString());
     notifyListeners();
+    await refreshMasjidDetails();
     await fetchCmsData();
     PushService.instance.registerToken(id);
+  }
+
+  Future<void> refreshMasjidDetails() async {
+    final id = _currentMasjid?['id'];
+    if (id is! int) return;
+    try {
+      final dio = ApiClient().dio;
+      final res = await dio.get('/masjids/$id');
+      final data = res.data as Map<String, dynamic>;
+      _currentMasjid = {..._currentMasjid!, ...data};
+    } catch (_) {}
+    notifyListeners();
   }
 
   Future<void> joinMasjid(int id) async {

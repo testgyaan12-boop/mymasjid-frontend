@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/masjid_provider.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -11,9 +12,13 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
+  static const _prefsKey = 'dismissed_notifications';
+  Set<String> _dismissed = {};
+
   @override
   void initState() {
     super.initState();
+    _loadDismissed();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final masjid = context.read<MasjidProvider>();
       masjid.loadNotifications();
@@ -21,10 +26,35 @@ class _NotificationsPageState extends State<NotificationsPage> {
     });
   }
 
+  Future<void> _loadDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _dismissed = (prefs.getStringList(_prefsKey) ?? []).toSet());
+  }
+
+  Future<void> _saveDismissed(Set<String> updated) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefsKey, updated.toList());
+  }
+
+  void _dismissOne(String id) {
+    setState(() {
+      _dismissed.add(id);
+      _saveDismissed(_dismissed);
+    });
+  }
+
+  void _clearAll(List<Map<String, dynamic>> notes) {
+    setState(() {
+      _dismissed.addAll(notes.map((n) => (n['id'] ?? '').toString()));
+      _saveDismissed(_dismissed);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final masjid = context.watch<MasjidProvider>();
-    final notes = masjid.notifications;
+    final allNotes = masjid.notifications;
+    final notes = allNotes.where((n) => !_dismissed.contains((n['id'] ?? '').toString())).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -39,15 +69,36 @@ class _NotificationsPageState extends State<NotificationsPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          if (notes.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.clear_all),
+              tooltip: 'Clear All',
+              onPressed: () => _clearAll(notes),
+            ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: masjid.loadNotifications,
         child: notes.isEmpty
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 120),
+                children: [
+                  const SizedBox(height: 120),
                   Center(child: Text('No notifications yet.')),
+                  if (_dismissed.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.restore, size: 18),
+                        label: const Text('Restore cleared notifications'),
+                        onPressed: () {
+                          setState(() => _dismissed = {});
+                          _saveDismissed({});
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               )
             : ListView.separated(
@@ -55,7 +106,35 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 padding: const EdgeInsets.all(16),
                 itemCount: notes.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _buildCard(context, notes[i]),
+                itemBuilder: (_, i) => Dismissible(
+                  key: ValueKey('note_${notes[i]['id'] ?? i}'),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.red),
+                  ),
+                  onDismissed: (_) => _dismissOne((notes[i]['id'] ?? '').toString()),
+                  child: Stack(
+                    children: [
+                      _buildCard(context, notes[i]),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: IconButton(
+                          icon: const Icon(Icons.close, size: 16),
+                          tooltip: 'Dismiss',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => _dismissOne((notes[i]['id'] ?? '').toString()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
       ),
     );
