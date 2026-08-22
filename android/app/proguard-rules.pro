@@ -9,3 +9,4 @@
 -dontwarn io.flutter.plugin.**
 -dontwarn com.google.android.play.core.splitinstall.**
 -dontwarn com.google.android.play.core.tasks.**
+-dontwarn com.google.android.play.core.splitcompat.**

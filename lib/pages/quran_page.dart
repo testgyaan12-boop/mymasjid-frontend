@@ -21,6 +21,7 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
   List<Map<String, dynamic>> _surahs = [];
   bool _loading = true;
   String _searchQuery = '';
+  late final TextEditingController _searchCtrl;
   Map<String, bool> _completedAyats = {};
   Map<String, int> _surahCheckpoints = {};
   Map<String, int> _juzCheckpoints = {};
@@ -34,11 +35,18 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
     _juzCheckpoints = {};
     _completedJuz = {};
     _tabCtrl = TabController(length: 2, vsync: this);
+    _searchCtrl = TextEditingController();
+    _searchCtrl.addListener(() {
+      if (_searchQuery != _searchCtrl.text) {
+        setState(() => _searchQuery = _searchCtrl.text);
+      }
+    });
     _loadSurahs();
   }
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     _tabCtrl.dispose();
     super.dispose();
   }
@@ -263,15 +271,23 @@ class _QuranPageState extends State<QuranPage> with SingleTickerProviderStateMix
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: TextField(
+            controller: _searchCtrl,
+            keyboardType: TextInputType.text,
+            textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               hintText: 'Search surah...',
               prefixIcon: const Icon(Icons.search, size: 20),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => _searchCtrl.clear(),
+                    )
+                  : null,
               contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               filled: true,
               fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             ),
-            onChanged: (v) => setState(() => _searchQuery = v),
           ),
         ),
         Expanded(
@@ -587,13 +603,21 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
   int _lastReadAyah = 0;
   TranslationMode _mode = TranslationMode.both;
   final GlobalKey _shareKey = GlobalKey();
+  late final PageController _pageCtrl;
 
   @override
   void initState() {
     super.initState();
     _completed = Map.from(widget.completedAyats);
     _lastReadAyah = widget.checkpoint;
+    _pageCtrl = PageController(initialPage: _lastReadAyah > 0 ? _lastReadAyah - 1 : 0);
     _loadAyahs();
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAyahs() async {
@@ -646,8 +670,15 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
         _completed[key] = true;
       }
     }
-    if (_ayahs.isNotEmpty) widget.onSaveCheckpoint(_ayahs.last['numberInSurah'] as int);
-    setState(() {});
+    if (_ayahs.isNotEmpty) {
+      final last = _ayahs.last['numberInSurah'] as int;
+      _lastReadAyah = last;
+      await widget.onSaveCheckpoint(last);
+      if (_pageCtrl.hasClients) {
+        _pageCtrl.animateToPage(_ayahs.length - 1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      }
+    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _resetSurah() async {
@@ -687,12 +718,51 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
       final temp = await getTemporaryDirectory();
       final file = File('${temp.path}/surah_${widget.surahNum}.png');
       await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      // Build share text from current visible ayah (jis page pe ho waha ka sab)
+      String ayahBlock = '';
+      if (_ayahs.isNotEmpty) {
+        final idx = _pageCtrl.hasClients
+            ? (_pageCtrl.page?.round() ?? (_lastReadAyah > 0 ? _lastReadAyah - 1 : 0)).clamp(0, _ayahs.length - 1)
+            : (_lastReadAyah > 0 ? _lastReadAyah - 1 : 0).clamp(0, _ayahs.length - 1);
+        final ayah = _ayahs[idx];
+        final ayahNum = ayah['numberInSurah'] as int;
+        final arabic = ayah['text'] as String? ?? '';
+        final en = _enTranslations[ayahNum.toString()] ?? '';
+        final ur = _urTranslations[ayahNum.toString()] ?? '';
+        final buffer = StringBuffer();
+        buffer.writeln(arabic);
+        if (_mode == TranslationMode.arabicEnglish && en.isNotEmpty) {
+          buffer.writeln();
+          buffer.writeln(en);
+        } else if (_mode == TranslationMode.arabicUrdu && ur.isNotEmpty) {
+          buffer.writeln();
+          buffer.writeln(ur);
+        } else if (_mode == TranslationMode.both) {
+          if (ur.isNotEmpty) { buffer.writeln(); buffer.writeln(ur); }
+          if (en.isNotEmpty) { buffer.writeln(); buffer.writeln(en); }
+        } else if (_mode == TranslationMode.arabicOnly) {
+          // only arabic already
+        }
+        buffer.writeln();
+        buffer.writeln('— Surah ${widget.surah['englishName'] as String? ?? widget.surahNum} (${widget.surah['name'] as String? ?? ''}) Ayah $ayahNum');
+        if (en.isEmpty && ur.isEmpty && _mode != TranslationMode.arabicOnly) {
+          // fallback if translations not loaded yet
+        }
+        ayahBlock = buffer.toString();
+      }
+
+      final header = 'Surah ${widget.surah['englishName'] as String? ?? widget.surahNum} — '
+          '${widget.surah['englishNameTranslation'] as String? ?? ''}\n'
+          '${widget.surah['numberOfAyahs']} ayahs • ${widget.surah['revelationType'] as String? ?? ''}\n'
+          '${widget.surah['name'] as String? ?? ''}';
+      final shareText = ayahBlock.isNotEmpty
+          ? '$ayahBlock\n\n$header\n\nDownload Noor App: ${AppConstants.appShareLink}'
+          : '$header\n\nDownload Noor App: ${AppConstants.appShareLink}';
+
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Surah ${widget.surah['englishName'] as String? ?? widget.surahNum} — '
-              '${widget.surah['englishNameTranslation'] as String? ?? ''}\n'
-              '${widget.surah['numberOfAyahs']} ayahs • ${widget.surah['revelationType'] as String? ?? ''}\n'
-              '${widget.surah['name'] as String? ?? ''}',
+        text: shareText,
       );
     } catch (_) {
       if (!mounted) return;
@@ -859,7 +929,7 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
                     )
                   : PageView.builder(
                       itemCount: _ayahs.length,
-                      controller: PageController(initialPage: _lastReadAyah > 0 ? _lastReadAyah - 1 : 0),
+                      controller: _pageCtrl,
                       onPageChanged: (i) async {
                         final ayahNum = _ayahs[i]['numberInSurah'] as int;
                         if (_lastReadAyah != ayahNum) {
@@ -1034,20 +1104,6 @@ class _SurahReaderDialogState extends State<_SurahReaderDialog> {
                   ),
                   const SizedBox(width: 4),
                   GestureDetector(
-                    onTap: _resetSurah,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text('Reset',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.orange.shade700),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1165,13 +1221,22 @@ class _JuzReaderDialogState extends State<_JuzReaderDialog> {
   int _totalAyahs = 0;
   int _currentIndex = 0;
   late Map<String, bool> _completed;
+  late final PageController _pageCtrl;
 
   @override
   void initState() {
     super.initState();
     _juzName = widget.juzNum <= 30 ? AppConstants.juzNames[widget.juzNum - 1] : '';
     _completed = Map.from(widget.completedAyats);
+    _currentIndex = widget.initialIndex.clamp(0, 10000);
+    _pageCtrl = PageController(initialPage: _currentIndex);
     _loadAyahs();
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
   }
 
   String _getAyahKey(int surah, int ayah) => '$surah:$ayah';
@@ -1222,8 +1287,15 @@ class _JuzReaderDialogState extends State<_JuzReaderDialog> {
         _completed[key] = true;
       }
     }
+    if (_totalAyahs > 0) {
+      _currentIndex = _totalAyahs - 1;
+      widget.onSaveCheckpoint(_currentIndex);
+      if (_pageCtrl.hasClients) {
+        _pageCtrl.animateToPage(_totalAyahs - 1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      }
+    }
     widget.onJuzComplete(true);
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _resetJuz() async {
@@ -1345,9 +1417,7 @@ class _JuzReaderDialogState extends State<_JuzReaderDialog> {
                     )
                   : PageView.builder(
                       itemCount: _ayahs.length,
-                      controller: PageController(
-                        initialPage: widget.initialIndex.clamp(0, _ayahs.length - 1),
-                      ),
+                      controller: _pageCtrl,
                       onPageChanged: (i) async {
                         setState(() => _currentIndex = i);
                         widget.onSaveCheckpoint(i);

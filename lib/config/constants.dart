@@ -27,6 +27,8 @@ class AppConstants {
     {'title': 'Masjid Expansion', 'description': 'Help us expand prayer facilities.', 'upi': 'build@noor', 'badge': 'Waqf'},
   ];
 
+  static const String appShareLink = 'https://play.google.com/store/apps/details?id=com.nooralmasjid.noor_al_masjid';
+
   // Juz names
   static const List<String> juzNames = [
     'Alif-Lam-Meem', 'Sayaqool', 'Tilkal Rusul', 'Lan Tanalu', 'Wal Muhsanat',
