@@ -28,6 +28,10 @@ class UserService {
     await _dio.post('/user/tasbih-logs', data: data);
   }
 
+  Future<void> deleteTasbihLog(int id) async {
+    await _dio.delete('/user/tasbih-logs/$id');
+  }
+
   // Custom Adhkars
   Future<List<dynamic>> getAdhkars() async {
     final res = await _dio.get('/user/adhkars');
