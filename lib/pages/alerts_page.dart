@@ -8,7 +8,8 @@ import '../config/constants.dart';
 import '../providers/masjid_provider.dart';
 
 class AlertsPage extends StatelessWidget {
-  const AlertsPage({super.key});
+  final int? initialTab;
+  const AlertsPage({super.key, this.initialTab});
 
   @override
   Widget build(BuildContext context) {
@@ -17,9 +18,11 @@ class AlertsPage extends StatelessWidget {
     final janazahs = (cms['janazahs'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).where((e) => e['active'] != false).toList() ?? [];
     final gumshudas = (cms['gumshudas'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).where((e) => e['active'] != false).toList() ?? [];
     final announcements = (cms['announcements'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).where((e) => e['active'] != false).toList() ?? [];
+    final tabIndex = (initialTab ?? 0).clamp(0, 2).toInt();
 
     return DefaultTabController(
       length: 3,
+      initialIndex: tabIndex,
       child: Scaffold(
         appBar: AppBar(
           title: Column(

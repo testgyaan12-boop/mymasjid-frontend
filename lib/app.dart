@@ -84,7 +84,17 @@ GoRouter buildRouter(String initialLocation) {
           GoRoute(path: '/tasbih', builder: (_, __) => const TasbihPage()),
           GoRoute(path: '/saved-tasbihs', builder: (_, __) => const SavedTasbihsPage()),
           GoRoute(path: '/donations', builder: (_, __) => const DonationsPage()),
-          GoRoute(path: '/alerts', builder: (_, __) => const AlertsPage()),
+          GoRoute(
+            path: '/alerts',
+            builder: (_, state) {
+              final tab = state.uri.queryParameters['tab']?.toLowerCase();
+              int idx = 0;
+              if (tab == 'missing' || tab == '1' || tab == 'gumshuda' || tab == 'gumshudas') idx = 1;
+              else if (tab == 'news' || tab == '2' || tab == 'announcement' || tab == 'announcements') idx = 2;
+              else if (tab == 'janazah' || tab == 'janazahs' || tab == '0') idx = 0;
+              return AlertsPage(initialTab: idx);
+            },
+          ),
           GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
           GoRoute(path: '/events', builder: (_, __) => const EventsPage()),
           GoRoute(path: '/zakat', builder: (_, __) => const ZakatPage()),
