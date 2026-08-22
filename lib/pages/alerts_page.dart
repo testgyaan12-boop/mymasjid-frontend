@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/constants.dart';
 import '../providers/masjid_provider.dart';
 
 class AlertsPage extends StatelessWidget {
@@ -92,6 +94,15 @@ class AlertsPage extends StatelessWidget {
                     ),
                   ),
                 ),
+                const Spacer(),
+                InkWell(
+                  onTap: () => _confirmAndShare(context, item, 'Janazah'),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.share_rounded, size: 16, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -163,18 +174,31 @@ class AlertsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: found ? Colors.green.withValues(alpha: 0.2) : (item['active'] == true ? Colors.amber.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      found ? 'RESOLVED / FOUND' : (item['active'] == true ? 'Active Alert' : 'Archived'),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: found ? Colors.green : (item['active'] == true ? Colors.amber : Colors.grey),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: found ? Colors.green.withValues(alpha: 0.2) : (item['active'] == true ? Colors.amber.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          found ? 'RESOLVED / FOUND' : (item['active'] == true ? 'Active Alert' : 'Archived'),
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: found ? Colors.green : (item['active'] == true ? Colors.amber : Colors.grey),
+                          ),
+                        ),
                       ),
-                    ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () => _confirmAndShare(context, item, 'Missing Person'),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(Icons.share_rounded, size: 16, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(item['title'] as String? ?? '', style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -269,6 +293,53 @@ class AlertsPage extends StatelessWidget {
     }
   }
 
+  String _shareTextFor(Map<String, dynamic> item, String type) {
+    final title = item['title'] as String? ?? '';
+    final details = item['details'] as String? ?? item['description'] as String? ?? '';
+    final time = item['time'] as String? ?? '';
+    final loc = item['location'] as String? ?? '';
+    final contact = item['contact'] as String? ?? '';
+    final buffer = StringBuffer();
+    buffer.writeln('[$type Alert] $title');
+    if (details.isNotEmpty) buffer.writeln(details);
+    if (time.isNotEmpty) buffer.writeln('Time: $time');
+    if (loc.isNotEmpty) buffer.writeln('Location: $loc');
+    if (contact.isNotEmpty) buffer.writeln('Contact: $contact');
+    buffer.writeln();
+    buffer.writeln('Shared via Noor Al Masjid Community Alerts');
+    buffer.writeln('Download App: ${AppConstants.appShareLink}');
+    return buffer.toString();
+  }
+
+  Future<void> _confirmAndShare(BuildContext context, Map<String, dynamic> item, String type) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 22),
+            const SizedBox(width: 8),
+            const Text('Disclaimer', style: TextStyle(fontWeight: FontWeight.w800)),
+          ],
+        ),
+        content: const Text(
+          'Please verify this information before sharing. If you miss a lead, misuse, or forward unverified information, you are solely responsible. Community alerts are meant for genuine assistance only.\n\nDo you want to share?',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Share', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    await Share.share(_shareTextFor(item, type));
+  }
+
   Widget _buildAnnouncementCard(BuildContext context, Map<String, dynamic> item) {
     final image = item['image'] as String? ?? '';
     return Card(
@@ -292,6 +363,15 @@ class AlertsPage extends StatelessWidget {
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: item['active'] == true ? Colors.green : Colors.grey,
                     ),
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: () => _confirmAndShare(context, item, 'Announcement'),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.share_rounded, size: 16, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)),
                   ),
                 ),
               ],
@@ -319,6 +399,7 @@ class AlertsPage extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 4),
           ],
         ),
       ),
