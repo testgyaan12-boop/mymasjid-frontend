@@ -131,6 +131,27 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
     _saveSession();
   }
 
+  Future<void> _confirmFinishSet() async {
+    if (_count == 0) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Save Set?'),
+        content: Text('Save $_count × $_selectedDhikr as a set?\nSet $_currentSet • $_beadCount / $beadsPerSet'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.secondary),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _finishSet();
+  }
+
   Future<void> _finishSet() async {
     if (_count == 0) return;
     final count = _count;
@@ -169,6 +190,29 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
     );
   }
 
+  Future<void> _confirmReset() async {
+    if (_count == 0) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Tasbih?'),
+        content: Text('Clear current count ($_count) for $_selectedDhikr?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Reset', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _count = 0);
+    _saveSession();
+  }
+
+  // ignore: unused_element
   void _reset() => setState(() => _count = 0);
 
   List<Map<String, dynamic>> get _allAdhkars => [
@@ -367,7 +411,7 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
             color: Colors.transparent,
             child: InkWell(
               onTap: _increment,
-              onLongPress: _reset,
+              onLongPress: _confirmReset,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               splashColor: primary.withValues(alpha: 0.12),
               highlightColor: primary.withValues(alpha: 0.05),
@@ -486,13 +530,13 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
             child: Row(
               children: [
-                _miniBtn(Icons.refresh_rounded, Colors.orange, _reset),
+                _miniBtn(Icons.refresh_rounded, Colors.orange, _confirmReset),
                 const SizedBox(width: 8),
                 Expanded(
                   child: SizedBox(
                     height: 38,
                     child: ElevatedButton.icon(
-                      onPressed: _count == 0 ? null : _finishSet,
+                      onPressed: _count == 0 ? null : _confirmFinishSet,
                       icon: const Icon(Icons.save_rounded, size: 16),
                       label: const Text('Save Set', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                       style: ElevatedButton.styleFrom(
@@ -727,7 +771,7 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
   void _showGoalDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Daily Goal'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -738,13 +782,68 @@ class _TasbihCounterState extends State<TasbihCounter> with TickerProviderStateM
               children: [33, 99, 100, 300, 500].map((v) => ChoiceChip(
                 label: Text('$v'),
                 selected: _targetGoal == v,
-                onSelected: (_) {
+                onSelected: (_) async {
+                  Navigator.of(dialogCtx).pop();
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  if (!mounted || !context.mounted) return;
+                  // ignore: use_build_context_synchronously
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx2) => AlertDialog(
+                      title: const Text('Set Goal?'),
+                      content: Text('Set daily goal to $v tasbih?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(ctx2).pop(false), child: const Text('Cancel')),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx2).colorScheme.secondary),
+                          onPressed: () => Navigator.of(ctx2).pop(true),
+                          child: const Text('Set', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true || !mounted) return;
                   setState(() => _targetGoal = v);
-                  SharedPreferences.getInstance().then((p) => p.setInt('tasbih_target_goal', v));
-                  Navigator.pop(context);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.setInt('tasbih_target_goal', v);
                 },
               )).toList(),
             ),
+            if (_targetGoal != null) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () async {
+                  Navigator.of(dialogCtx).pop();
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  if (!mounted || !context.mounted) return;
+                  // ignore: use_build_context_synchronously
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx2) => AlertDialog(
+                      title: const Text('Clear Goal?'),
+                      content: Text('Remove daily goal ($_targetGoal)?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.of(ctx2).pop(false), child: const Text('Cancel')),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+                          onPressed: () => Navigator.of(ctx2).pop(true),
+                          child: const Text('Clear', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true || !mounted) return;
+                  setState(() => _targetGoal = null);
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.remove('tasbih_target_goal');
+                },
+                icon: const Icon(Icons.clear_rounded, size: 16),
+                label: Text('Clear Goal ($_targetGoal)', style: const TextStyle(fontWeight: FontWeight.w700)),
+                style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
+              ),
+            ],
           ],
         ),
       ),
