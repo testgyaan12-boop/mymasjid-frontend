@@ -81,15 +81,30 @@ class _MasjidSelectPageState extends State<MasjidSelectPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 4),
+              padding: const EdgeInsets.fromLTRB(8, 8, 20, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        onPressed: () {
+                          if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/login');
+                          }
+                        },
+                        style: IconButton.styleFrom(
+                          backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                       Icon(Icons.mosque_rounded, size: 28, color: theme.colorScheme.primary),
                       const SizedBox(width: 10),
-                      Text('Select Your Masjid', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900)),
+                      Expanded(child: Text('Select Your Masjid', style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900))),
                     ],
                   ),
                   const SizedBox(height: 6),
