@@ -146,11 +146,6 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                   title: const Text('My Profile'),
                   onTap: () { Navigator.pop(ctx); context.push('/profile'); },
                 ),
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Sign Out'),
-                  onTap: () { Navigator.pop(ctx); auth.logout(); },
-                ),
               ] else ...[
                 ListTile(
                   leading: const Icon(Icons.person),

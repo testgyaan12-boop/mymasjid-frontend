@@ -19,6 +19,27 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
+  bool _autoFingerprintDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tryAutoFingerprint());
+  }
+
+  Future<void> _tryAutoFingerprint() async {
+    if (_autoFingerprintDone) return;
+    _autoFingerprintDone = true;
+    final prefs = await SharedPreferences.getInstance();
+    final hasSession = prefs.getString('access_token') != null;
+    if (!hasSession || !mounted) return;
+    if (!BiometricService().isSupported) return;
+    if (!await BiometricService().isAvailable()) return;
+    // Small delay to let UI settle, then auto prompt
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    await _handleFingerprint();
+  }
 
   @override
   void dispose() {
@@ -33,7 +54,12 @@ class _LoginPageState extends State<LoginPage> {
     final auth = context.read<AuthProvider>();
     final ok = await auth.login(_emailCtrl.text.trim(), _passwordCtrl.text);
     setState(() => _loading = false);
-    if (ok && mounted) {
+    if (!mounted) return;
+    if (ok) {
+      final userName = context.read<AuthProvider>().user?['name'] as String? ?? 'User';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Welcome back, $userName!'), backgroundColor: Colors.green.shade700),
+      );
       final prefs = await SharedPreferences.getInstance();
       final hasMasjid = prefs.getString('current_masjid_id') != null;
       if (!context.mounted) return;
@@ -44,6 +70,11 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         context.go('/masjid-select');
       }
+    } else {
+      final msg = context.read<AuthProvider>().error ?? 'Login failed';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Theme.of(context).colorScheme.error),
+      );
     }
   }
 

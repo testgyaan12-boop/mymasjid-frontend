@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
-import '../providers/masjid_provider.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -35,6 +33,25 @@ class _SignupPageState extends State<SignupPage> {
 
   Future<void> _handleSendOtp() async {
     if (!_formKey.currentState!.validate()) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create Account?'),
+        content: Text(
+          'Name: ${_nameCtrl.text.trim()}\nEmail: ${_emailCtrl.text.trim()}\n'
+          '${_phoneCtrl.text.trim().isEmpty ? '' : 'Mobile: ${_phoneCtrl.text.trim()}\n'}\nCreate account with these details?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.secondary),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Create', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _loading = true);
     final auth = context.read<AuthProvider>();
     final ok = await auth.signup(
@@ -44,20 +61,18 @@ class _SignupPageState extends State<SignupPage> {
       phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
     );
     setState(() => _loading = false);
-    if (ok && mounted) {
+    if (!mounted) return;
+    if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created! Please check your email for verification.')),
+        const SnackBar(content: Text('Account created! Please login.')),
       );
-      final prefs = await SharedPreferences.getInstance();
-      final hasMasjid = prefs.getString('current_masjid_id') != null;
       if (!context.mounted) return;
-      if (hasMasjid) {
-        await context.read<MasjidProvider>().loadSavedMasjid();
-        if (!context.mounted) return;
-        context.go('/');
-      } else {
-        context.go('/masjid-select');
-      }
+      context.go('/login');
+    } else {
+      final msg = context.read<AuthProvider>().error ?? 'Failed to create account';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Theme.of(context).colorScheme.error),
+      );
     }
   }
 
@@ -92,14 +107,28 @@ class _SignupPageState extends State<SignupPage> {
                   controller: _emailCtrl,
                   decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email)),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) => v == null || v.isEmpty ? 'Enter email' : null,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Enter email';
+                    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                    if (!emailRegex.hasMatch(v.trim())) return 'Enter valid email';
+                    if (v.trim().length > 150) return 'Email too long';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
                 TextFormField(
                   controller: _phoneCtrl,
-                  decoration: const InputDecoration(labelText: 'Mobile (optional)', prefixIcon: Icon(Icons.phone)),
+                  decoration: const InputDecoration(labelText: 'Mobile (optional)', prefixIcon: Icon(Icons.phone), hintText: '10 digits'),
                   keyboardType: TextInputType.phone,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    final p = v.trim().replaceAll(RegExp(r'[\s-]'), '');
+                    final phoneRegex = RegExp(r'^\+?[0-9]{10,15}$');
+                    if (!phoneRegex.hasMatch(p)) return 'Enter valid 10-digit mobile';
+                    if (p.replaceAll('+', '').length < 10) return 'Mobile must be 10 digits';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -114,7 +143,15 @@ class _SignupPageState extends State<SignupPage> {
                     ),
                   ),
                   obscureText: _obscure,
-                  validator: (v) => v == null || v.length < 6 ? 'Min 6 characters' : null,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Enter password';
+                    if (v.length < 8) return 'Min 8 characters';
+                    if (!RegExp(r'[A-Z]').hasMatch(v)) return 'Need 1 uppercase';
+                    if (!RegExp(r'[a-z]').hasMatch(v)) return 'Need 1 lowercase';
+                    if (!RegExp(r'[0-9]').hasMatch(v)) return 'Need 1 number';
+                    if (!RegExp(r'[@$!%*?&]').hasMatch(v)) return r'Need 1 special @$!%*?&';
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 24),
 

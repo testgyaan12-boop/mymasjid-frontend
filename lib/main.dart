@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'providers/masjid_provider.dart';
 import 'providers/theme_provider.dart';
@@ -19,22 +18,12 @@ Future<void> main() async {
   final authProvider = AuthProvider();
   final masjidProvider = MasjidProvider();
 
-  // Read the saved session BEFORE launching so the first screen is correct.
-  final prefs = await SharedPreferences.getInstance();
-  final savedSession = prefs.getString('access_token') != null;
-
-  // If a saved session exists, auto-login (background) and open Home directly.
-  // Otherwise, show the Sign-In page.
-  final String initialLocation;
-  if (savedSession) {
-    unawaited(authProvider.tryAutoLogin());
-    unawaited(masjidProvider.loadSavedMasjid());
-    unawaited(themeProvider.loadTheme());
-    initialLocation = '/';
-  } else {
-    unawaited(themeProvider.loadTheme());
-    initialLocation = '/login';
-  }
+  // Always start at login - no auto-login. Show fingerprint if session exists.
+  final String initialLocation = '/login';
+  unawaited(themeProvider.loadTheme());
+  // Do not auto-login; let LoginPage handle fingerprint auto if session available.
+  // Preload masjid for guest browsing if needed but not required for auth.
+  unawaited(masjidProvider.loadSavedMasjid());
 
   // Push notifications service initialization (fire-and-forget).
   unawaited(_initPush());

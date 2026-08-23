@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
@@ -78,10 +79,37 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = _extractError(e);
       notifyListeners();
       return false;
     }
+  }
+
+  String _extractError(dynamic e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map) {
+        if (data['message'] is String && (data['message'] as String).isNotEmpty) {
+          return data['message'] as String;
+        }
+        // Validation map: {field: message}
+        if (data.isNotEmpty) {
+          final first = data.values.first;
+          if (first is String) return first;
+        }
+      } else if (data is String && data.isNotEmpty) {
+        return data;
+      }
+      if (e.response?.statusCode == 401) return 'Invalid email or password';
+      if (e.response?.statusCode == 400) return 'Please check your details';
+    }
+    final msg = e.toString();
+    // Strip DioException prefix for cleaner toaster
+    if (msg.contains('DioException')) {
+      final m = RegExp(r'message:\s*(.*)').firstMatch(msg);
+      if (m != null) return m.group(1)!.trim();
+    }
+    return msg.replaceAll('Exception:', '').trim();
   }
 
   Future<bool> signup({
@@ -92,36 +120,20 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     try {
       _error = null;
-      final data = await _authService.signup(
+      await _authService.signup(
         name: name, email: email, password: password, phone: phone,
       );
-      _token = data['accessToken'] as String?;
-      _refreshToken = data['refreshToken'] as String?;
-      _user = {
-        'id': data['userId'],
-        'name': data['name'],
-        'email': data['email'],
-        'systemRole': data['systemRole'] ?? 'USER',
-        'currentMasjidId': data['currentMasjidId'],
-        'currentMasjidName': data['currentMasjidName'],
-      };
-      ApiClient.setToken(_token);
-      if (data['currentMasjidId'] != null) {
-        ApiClient.setMasjidId(data['currentMasjidId'].toString());
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('access_token', _token!);
-      if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
-      if (data['currentMasjidId'] != null) {
-        await prefs.setString('current_masjid_id', data['currentMasjidId'].toString());
-      }
-
-      _status = AuthStatus.authenticated;
+      // Do not auto-login after signup - user must login with credentials.
+      // Clear any stale auth state.
+      _token = null;
+      _refreshToken = null;
+      _user = null;
+      _status = AuthStatus.unauthenticated;
+      ApiClient.setToken(null);
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = _extractError(e);
       notifyListeners();
       return false;
     }
